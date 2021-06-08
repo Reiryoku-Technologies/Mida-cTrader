@@ -1,0 +1,5 @@
+build
+docs/typedoc
+node_modules
+.idea
+**/.DS_Store

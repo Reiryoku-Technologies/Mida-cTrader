@@ -1,0 +1,50 @@
+{
+    "name": "@reiryoku/mida-plugin-template",
+    "version": "1.0.0",
+    "description": "A Mida plugin template.",
+    "license": "MIT",
+    "homepage": "https://github.com/Reiryoku-Technologies/Mida-Plugin-Template",
+    "bugs": {
+        "url": "https://github.com/Reiryoku-Technologies/Mida-Plugin-Template/issues"
+    },
+    "author": {
+        "name": "Vasile Pește / Reiryoku Technologies",
+        "email": "vasile.peste@protonmail.ch"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Reiryoku-Technologies/Mida-Plugin-Template.git"
+    },
+    "scripts": {
+        "lint": "eslint . --ext .ts,.js",
+        "build": "ttsc",
+        "test": "npm run build && jest --verbose",
+        "create-docs": "typedoc",
+        "safe-build": "rm -rf ./build && npm run lint && npm run build && jest",
+        "prepublishOnly": "npm run safe-build"
+    },
+    "main": "./build/entry/node/main.js",
+    "types": "./build/entry/node/main.d.ts",
+    "files": [
+        "build",
+        "entry",
+        "src",
+        "tests"
+    ],
+    "devDependencies": {
+        "@reiryoku/mida": "^2.0.0",
+        "@types/jest": "^26.0.20",
+        "@types/node": "^12.7.2",
+        "@typescript-eslint/eslint-plugin": "^4.26.0",
+        "@typescript-eslint/parser": "^4.26.0",
+        "eslint": "^7.28.0",
+        "jest": "^26.6.3",
+        "ttypescript": "^1.5.12",
+        "typedoc": "^0.20.36",
+        "typescript": "^4.3.2",
+        "typescript-transform-paths": "^2.2.4"
+    },
+    "peerDependencies": {
+        "@reiryoku/mida": "^2.0.0"
+    }
+}
