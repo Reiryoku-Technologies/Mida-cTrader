@@ -1,11 +1,11 @@
 {
-    "name": "@reiryoku/mida-plugin-template",
+    "name": "@reiryoku/mida-ctrader",
     "version": "1.0.0",
-    "description": "A Mida plugin template.",
+    "description": "A Mida plugin to operate with cTrader.",
     "license": "MIT",
-    "homepage": "https://github.com/Reiryoku-Technologies/Mida-Plugin-Template",
+    "homepage": "https://github.com/Reiryoku-Technologies/Mida-cTrader",
     "bugs": {
-        "url": "https://github.com/Reiryoku-Technologies/Mida-Plugin-Template/issues"
+        "url": "https://github.com/Reiryoku-Technologies/Mida-cTrader/issues"
     },
     "author": {
         "name": "Vasile Pește / Reiryoku Technologies",
@@ -13,7 +13,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/Reiryoku-Technologies/Mida-Plugin-Template.git"
+        "url": "https://github.com/Reiryoku-Technologies/Mida-cTrader.git"
     },
     "scripts": {
         "lint": "eslint . --ext .ts,.js",
@@ -32,6 +32,7 @@
         "tests"
     ],
     "devDependencies": {
+        "@reiryoku/ctrader-layer": "^1.0.0",
         "@reiryoku/mida": "^2.0.0",
         "@types/jest": "^26.0.20",
         "@types/node": "^12.7.2",

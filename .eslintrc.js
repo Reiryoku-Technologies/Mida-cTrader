@@ -78,11 +78,6 @@ module.exports = {
         ],
         "key-spacing": [ "error", { "beforeColon": false, "afterColon": true, }, ],
         "linebreak-style": [ "error", "unix", ],
-        "lines-between-class-members": [
-            "error",
-            "always",
-            { "exceptAfterSingleLine": true, },
-        ],
         "max-lines-per-function": [ "error", 60, ],
         "max-params": [ "error", 6, ],
         "new-parens": [ "error", "always", ],

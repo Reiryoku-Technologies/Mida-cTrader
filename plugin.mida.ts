@@ -1,8 +1,8 @@
-import { MyPlugin } from "!/src/core/MyPlugin";
+import { MidaCTraderPlugin } from "!/src/core/MidaCTraderPlugin";
 
-export default new MyPlugin({
-    id: "my-plugin", // Your plugin id, required.
-    name: "My Plugin", // Your plugin name, required.
-    version: "1.0.0", // Your plugin version, required.
-    description: "This plugin does nothing.", // Your plugin description, optional.
+export default new MidaCTraderPlugin({
+    id: "mida-ctrader",
+    name: "cTrader",
+    version: "1.0.0",
+    description: "A Mida plugin to operate with cTrader.",
 });
