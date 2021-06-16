@@ -1,6 +1,6 @@
-import { MidaCTraderPlugin } from "!/src/core/MidaCTraderPlugin";
+import { CTraderPlugin } from "#CTraderPlugin";
 
-export default new MidaCTraderPlugin({
+export default new CTraderPlugin({
     id: "mida-ctrader",
     name: "cTrader",
     version: "1.0.0",

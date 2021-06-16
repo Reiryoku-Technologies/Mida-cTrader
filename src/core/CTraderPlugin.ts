@@ -4,7 +4,7 @@ import {
     MidaPluginParameters,
 } from "@reiryoku/mida";
 
-export class MidaCTraderPlugin extends MidaPlugin {
+export class CTraderPlugin extends MidaPlugin {
     public constructor ({
         id,
         name,
