@@ -3,6 +3,7 @@ import {
     MidaPluginActions,
     MidaPluginParameters,
 } from "@reiryoku/mida";
+import { CTraderPluginInstallOptions } from "#CTraderPluginInstallOptions";
 
 export class CTraderPlugin extends MidaPlugin {
     public constructor ({
@@ -19,7 +20,7 @@ export class CTraderPlugin extends MidaPlugin {
         });
     }
 
-    override install (actions: MidaPluginActions): void {
+    override install (actions: MidaPluginActions, options?: CTraderPluginInstallOptions): void {
         // Silence is golden.
     }
 }
