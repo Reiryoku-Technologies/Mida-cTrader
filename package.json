@@ -31,6 +31,9 @@
         "src",
         "tests"
     ],
+    "dependencies": {
+        "axios": "0.21.1"
+    },
     "devDependencies": {
         "@reiryoku/ctrader-layer": "^1.1.0",
         "@reiryoku/eslint-config-reiryoku": "^1.0.0",
