@@ -1,6 +1,4 @@
-import axios from "axios";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
-import { GenericObject } from "@reiryoku/mida";
 import { CTraderAppParameters } from "#brokers/ctrader/CTraderAppParameters";
 import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
 
@@ -48,11 +46,7 @@ export class CTraderApp {
         this.#isAuthenticated = true;
     }
 
-    public async getAccessTokenAccounts (accessToken: string): Promise<GenericObject[]> {
-        return JSON.parse(await axios.get(`https://api.spotware.com/connect/tradingaccounts?access_token=${accessToken}`));
-    }
-
-    public async login (brokerAccountId: string): Promise<CTraderBrokerAccount> {
+    public async login (accessToken: string, brokerAccountId: string): Promise<CTraderBrokerAccount> {
         throw new Error();
     }
 
