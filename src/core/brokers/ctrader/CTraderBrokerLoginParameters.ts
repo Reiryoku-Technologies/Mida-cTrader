@@ -1,4 +1,4 @@
-export type CTraderLoginParameters = {
+export type CTraderBrokerLoginParameters = {
     clientId: string;
     clientSecret: string;
     accessToken: string;

@@ -1,24 +1,24 @@
 import { MidaBroker } from "@reiryoku/mida";
 import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
-import { CTraderBrokerParameters } from "#brokers/ctrader/CTraderBrokerParameters";
+import { CTraderBrokerLoginParameters } from "#brokers/ctrader/CTraderBrokerLoginParameters";
+import { CTraderApp } from "#brokers/ctrader/CTraderApp";
 
 export class CTraderBroker extends MidaBroker {
-    readonly #cTraderBrokerLegalName: string;
-
-    public constructor ({ cTraderBrokerLegalName, }: CTraderBrokerParameters) {
+    public constructor () {
         super({
             name: "cTrader",
             websiteUri: "https://ctrader.com",
         });
-
-        this.#cTraderBrokerLegalName = cTraderBrokerLegalName;
     }
 
-    public get cTraderBrokerLegalName (): string {
-        return this.#cTraderBrokerLegalName;
-    }
+    public async login ({
+        clientId,
+        clientSecret,
+        accessToken,
+        brokerAccountId,
+    }: CTraderBrokerLoginParameters): Promise<CTraderBrokerAccount> {
+        const cTraderApp: CTraderApp = await CTraderApp.create({ clientId, clientSecret, });
 
-    public async login (): Promise<CTraderBrokerAccount> {
-        throw new Error();
+        return cTraderApp.login(accessToken, brokerAccountId);
     }
 }
