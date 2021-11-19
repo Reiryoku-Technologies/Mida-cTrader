@@ -20,7 +20,7 @@ export class CTraderPlugin extends MidaPlugin {
         });
     }
 
-    override install (actions: MidaPluginActions, options?: CTraderPluginInstallOptions): void {
+    public override install (actions: MidaPluginActions, options?: CTraderPluginInstallOptions): void {
         // Silence is golden.
     }
 }

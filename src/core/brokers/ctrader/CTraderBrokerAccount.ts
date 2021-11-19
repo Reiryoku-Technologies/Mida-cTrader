@@ -33,11 +33,16 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public async getBalance (): Promise<number> {
-        const accountDescriptor: GenericObject = await this.#connection.sendCommand(this.#connection.getPayloadTypeByName("ProtoOATraderReq"), {
+        const accountDescriptor: GenericObject = await this.#connection.sendCommand("ProtoOATraderReq", {
             ctidTraderAccountId: this.#cTraderAccountId,
         });
+        const balance = Number(accountDescriptor.balance);
 
-        return Number.parseFloat(accountDescriptor.balance);
+        if (!Number.isFinite(balance)) {
+            throw new Error();
+        }
+
+        return balance;
     }
 
     #configureListeners (): void {
