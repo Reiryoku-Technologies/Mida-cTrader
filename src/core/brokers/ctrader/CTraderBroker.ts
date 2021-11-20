@@ -8,6 +8,7 @@ export class CTraderBroker extends MidaBroker {
         super({
             name: "cTrader",
             websiteUri: "https://ctrader.com",
+            legalName: "",
         });
     }
 

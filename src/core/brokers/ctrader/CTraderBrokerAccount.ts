@@ -9,19 +9,27 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
     public constructor ({
         id,
-        ownerName,
-        type,
-        currency,
         broker,
+        creationDate,
+        ownerName,
+        currencyIso,
+        currencyDigits,
+        operativity,
+        positionAccounting,
+        indicativeLeverage,
         connection,
         cTraderBrokerAccountId,
     }: CTraderBrokerAccountParameters) {
         super({
             id,
-            ownerName,
-            type,
-            currency,
             broker,
+            creationDate,
+            ownerName,
+            currencyIso,
+            currencyDigits,
+            operativity,
+            positionAccounting,
+            indicativeLeverage,
         });
 
         this.#connection = connection;
@@ -33,16 +41,20 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public async getBalance (): Promise<number> {
-        const accountDescriptor: GenericObject = await this.#connection.sendCommand("ProtoOATraderReq", {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
-        });
-        const balance = Number(accountDescriptor.balance);
+        const accountDescriptor: GenericObject = await this.#getAccountDescriptor();
+        const balance = Number(accountDescriptor.balance.toString());
 
         if (!Number.isFinite(balance)) {
             throw new Error();
         }
 
-        return balance;
+        return balance / 100;
+    }
+
+    async #getAccountDescriptor (): Promise<GenericObject> {
+        return (await this.#connection.sendCommand("ProtoOATraderReq", {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+        })).trader;
     }
 
     #configureListeners (): void {

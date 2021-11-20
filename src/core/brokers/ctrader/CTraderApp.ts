@@ -1,7 +1,12 @@
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
 import { CTraderAppParameters } from "#brokers/ctrader/CTraderAppParameters";
 import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
-import { GenericObject, MidaBrokerAccountType } from "@reiryoku/mida";
+import {
+    GenericObject,
+    MidaBrokerAccountOperativity,
+    MidaBrokerAccountPositionAccounting,
+    MidaDate,
+} from "@reiryoku/mida";
 import { CTraderPlugin } from "#CTraderPlugin";
 
 export class CTraderApp {
@@ -61,12 +66,23 @@ export class CTraderApp {
 
         await connection.sendCommand("ProtoOAAccountAuthReq", { accessToken, ctidTraderAccountId: cTraderBrokerAccountId, });
 
+        /*
+        const accountDescriptor: GenericObject = await connection.sendCommand("ProtoOATraderReq", {
+            ctidTraderAccountId: cTraderBrokerAccountId,
+        });
+
+        console.log(accountDescriptor);*/
+
         return new CTraderBrokerAccount({
             id: account.traderLogin.toString(),
-            ownerName: "",
-            type: isLive ? MidaBrokerAccountType.REAL : MidaBrokerAccountType.DEMO,
-            currency: account.depositCurrency.toUpperCase(),
             broker: CTraderPlugin.broker,
+            creationDate: new MidaDate({ }),
+            ownerName: "",
+            currencyIso: "EUR",
+            currencyDigits: 2,
+            operativity: isLive ? MidaBrokerAccountOperativity.REAL : MidaBrokerAccountOperativity.DEMO,
+            positionAccounting: MidaBrokerAccountPositionAccounting.HEDGED,
+            indicativeLeverage: 30,
             connection,
             cTraderBrokerAccountId,
         });
