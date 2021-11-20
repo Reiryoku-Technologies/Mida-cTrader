@@ -51,6 +51,14 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return balance / 100;
     }
 
+    public async getSymbols (): Promise<string[]> {
+        const symbols: GenericObject[] = (await this.#connection.sendCommand("ProtoOASymbolsListReq", {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+        })).symbol;
+
+        return symbols.map((symbol: GenericObject): string => symbol.symbolName);
+    }
+
     async #getAccountDescriptor (): Promise<GenericObject> {
         return (await this.#connection.sendCommand("ProtoOATraderReq", {
             ctidTraderAccountId: this.#cTraderBrokerAccountId,

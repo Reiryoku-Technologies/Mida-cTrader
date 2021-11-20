@@ -14,6 +14,8 @@ export class CTraderApp {
     readonly #clientSecret: string;
     readonly #demoConnection: CTraderConnection;
     readonly #liveConnection: CTraderConnection;
+    #demoHeartbeatIntervalId: any;
+    #liveHeartbeatIntervalId: any;
     #isConnected: boolean;
     #isAuthenticated: boolean;
 
@@ -41,14 +43,27 @@ export class CTraderApp {
     }
 
     public async authenticateApp (): Promise<void> {
-        await this.#demoConnection.sendCommand(this.#demoConnection.getPayloadTypeByName("ProtoOAApplicationAuthReq"), {
+        // <demo>
+        const demoConnection = this.#demoConnection;
+
+        await demoConnection.sendCommand(demoConnection.getPayloadTypeByName("ProtoOAApplicationAuthReq"), {
             clientId: this.#clientId,
             clientSecret: this.#clientSecret,
         });
-        await this.#liveConnection.sendCommand(this.#demoConnection.getPayloadTypeByName("ProtoOAApplicationAuthReq"), {
+
+        this.#demoHeartbeatIntervalId = setInterval(() => demoConnection.sendHeartbeat(), 25000);
+        // </demo>
+
+        // <live>
+        const liveConnection = this.#liveConnection;
+
+        await liveConnection.sendCommand(liveConnection.getPayloadTypeByName("ProtoOAApplicationAuthReq"), {
             clientId: this.#clientId,
             clientSecret: this.#clientSecret,
         });
+
+        this.#liveHeartbeatIntervalId = setInterval(() => liveConnection.sendHeartbeat(), 25000);
+        // </live>
 
         this.#isAuthenticated = true;
     }
@@ -66,12 +81,11 @@ export class CTraderApp {
 
         await connection.sendCommand("ProtoOAAccountAuthReq", { accessToken, ctidTraderAccountId: cTraderBrokerAccountId, });
 
-        /*
         const accountDescriptor: GenericObject = await connection.sendCommand("ProtoOATraderReq", {
             ctidTraderAccountId: cTraderBrokerAccountId,
         });
 
-        console.log(accountDescriptor);*/
+        console.log(accountDescriptor);
 
         return new CTraderBrokerAccount({
             id: account.traderLogin.toString(),
