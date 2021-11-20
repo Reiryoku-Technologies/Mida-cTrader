@@ -1,7 +1,7 @@
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
 import { CTraderAppParameters } from "#brokers/ctrader/CTraderAppParameters";
 import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
-import { MidaBrokerAccountType } from "@reiryoku/mida";
+import { GenericObject, MidaBrokerAccountType } from "@reiryoku/mida";
 import { CTraderPlugin } from "#CTraderPlugin";
 
 export class CTraderApp {
@@ -48,27 +48,27 @@ export class CTraderApp {
         this.#isAuthenticated = true;
     }
 
-    public async login (accessToken: string, brokerAccountId: string): Promise<CTraderBrokerAccount> {
-        const accounts = await CTraderConnection.getAccessTokenAccounts(accessToken);
-        const account = accounts.find((account) => account.accountId.toString() === brokerAccountId);
+    public async login (accessToken: string, cTraderBrokerAccountId: string): Promise<CTraderBrokerAccount> {
+        const accounts = (await this.#demoConnection.sendCommand("ProtoOAGetAccountListByAccessTokenReq", { accessToken, })).ctidTraderAccount;
+        const account = accounts.find((account: GenericObject) => account.ctidTraderAccountId.toString() === cTraderBrokerAccountId);
 
         if (!account) {
             throw new Error();
         }
 
-        const isLive = account.live === true;
+        const isLive = account.isLive === true;
         const connection: CTraderConnection = isLive ? this.#liveConnection : this.#demoConnection;
 
-        await connection.sendCommand("ProtoOAAccountAuthReq", { accessToken, ctidTraderAccountId: brokerAccountId, });
+        await connection.sendCommand("ProtoOAAccountAuthReq", { accessToken, ctidTraderAccountId: cTraderBrokerAccountId, });
 
         return new CTraderBrokerAccount({
-            id: account.accountNumber.toString(),
+            id: account.traderLogin.toString(),
             ownerName: "",
             type: isLive ? MidaBrokerAccountType.REAL : MidaBrokerAccountType.DEMO,
-            currency: account.depositCurrency,
+            currency: account.depositCurrency.toUpperCase(),
             broker: CTraderPlugin.broker,
             connection,
-            cTraderAccountId: brokerAccountId,
+            cTraderBrokerAccountId,
         });
     }
 

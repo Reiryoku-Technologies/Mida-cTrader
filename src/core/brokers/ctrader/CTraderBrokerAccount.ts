@@ -5,7 +5,7 @@ import { CTraderBrokerAccountParameters } from "#brokers/ctrader/CTraderBrokerAc
 // @ts-ignore
 export class CTraderBrokerAccount extends MidaBrokerAccount {
     readonly #connection: CTraderConnection;
-    readonly #cTraderAccountId: string;
+    readonly #cTraderBrokerAccountId: string;
 
     public constructor ({
         id,
@@ -14,7 +14,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         currency,
         broker,
         connection,
-        cTraderAccountId,
+        cTraderBrokerAccountId,
     }: CTraderBrokerAccountParameters) {
         super({
             id,
@@ -25,16 +25,16 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         });
 
         this.#connection = connection;
-        this.#cTraderAccountId = cTraderAccountId;
+        this.#cTraderBrokerAccountId = cTraderBrokerAccountId;
     }
 
-    public get cTraderAccountId (): string {
-        return this.#cTraderAccountId;
+    public get cTraderBrokerAccountId (): string {
+        return this.#cTraderBrokerAccountId;
     }
 
     public async getBalance (): Promise<number> {
         const accountDescriptor: GenericObject = await this.#connection.sendCommand("ProtoOATraderReq", {
-            ctidTraderAccountId: this.#cTraderAccountId,
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
         });
         const balance = Number(accountDescriptor.balance);
 

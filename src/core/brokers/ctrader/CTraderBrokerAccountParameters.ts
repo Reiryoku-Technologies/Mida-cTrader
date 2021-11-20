@@ -3,5 +3,5 @@ import { CTraderConnection } from "@reiryoku/ctrader-layer";
 
 export type CTraderBrokerAccountParameters = MidaBrokerAccountParameters & {
     connection: CTraderConnection;
-    cTraderAccountId: string;
+    cTraderBrokerAccountId: string;
 };
