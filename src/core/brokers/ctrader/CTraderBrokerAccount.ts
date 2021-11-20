@@ -6,6 +6,7 @@ import { CTraderBrokerAccountParameters } from "#brokers/ctrader/CTraderBrokerAc
 export class CTraderBrokerAccount extends MidaBrokerAccount {
     readonly #connection: CTraderConnection;
     readonly #cTraderBrokerAccountId: string;
+    readonly #symbolsMap: Map<string, GenericObject>;
 
     public constructor ({
         id,
@@ -34,6 +35,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         this.#connection = connection;
         this.#cTraderBrokerAccountId = cTraderBrokerAccountId;
+        this.#symbolsMap = new Map();
     }
 
     public get cTraderBrokerAccountId (): string {
@@ -52,17 +54,27 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public async getSymbols (): Promise<string[]> {
-        const symbols: GenericObject[] = (await this.#connection.sendCommand("ProtoOASymbolsListReq", {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
-        })).symbol;
+        await this.#updateSymbolsMap();
 
-        return symbols.map((symbol: GenericObject): string => symbol.symbolName);
+        return [ ...this.#symbolsMap.values(), ].map((symbol): string => symbol.symbolName);
     }
 
     async #getAccountDescriptor (): Promise<GenericObject> {
         return (await this.#connection.sendCommand("ProtoOATraderReq", {
             ctidTraderAccountId: this.#cTraderBrokerAccountId,
         })).trader;
+    }
+
+    async #updateSymbolsMap (): Promise<void> {
+        const symbols: GenericObject[] = (await this.#connection.sendCommand("ProtoOASymbolsListReq", {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+        })).symbol;
+
+        this.#symbolsMap.clear();
+
+        symbols.forEach((symbol: GenericObject): void => {
+            this.#symbolsMap.set(symbol.symbolName, symbol);
+        });
     }
 
     #configureListeners (): void {

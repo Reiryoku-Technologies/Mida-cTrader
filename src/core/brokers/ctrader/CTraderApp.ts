@@ -46,7 +46,7 @@ export class CTraderApp {
         // <demo>
         const demoConnection = this.#demoConnection;
 
-        await demoConnection.sendCommand(demoConnection.getPayloadTypeByName("ProtoOAApplicationAuthReq"), {
+        await demoConnection.sendCommand("ProtoOAApplicationAuthReq", {
             clientId: this.#clientId,
             clientSecret: this.#clientSecret,
         });
@@ -57,7 +57,7 @@ export class CTraderApp {
         // <live>
         const liveConnection = this.#liveConnection;
 
-        await liveConnection.sendCommand(liveConnection.getPayloadTypeByName("ProtoOAApplicationAuthReq"), {
+        await liveConnection.sendCommand("ProtoOAApplicationAuthReq", {
             clientId: this.#clientId,
             clientSecret: this.#clientSecret,
         });
@@ -80,12 +80,6 @@ export class CTraderApp {
         const connection: CTraderConnection = isLive ? this.#liveConnection : this.#demoConnection;
 
         await connection.sendCommand("ProtoOAAccountAuthReq", { accessToken, ctidTraderAccountId: cTraderBrokerAccountId, });
-
-        const accountDescriptor: GenericObject = await connection.sendCommand("ProtoOATraderReq", {
-            ctidTraderAccountId: cTraderBrokerAccountId,
-        });
-
-        console.log(accountDescriptor);
 
         return new CTraderBrokerAccount({
             id: account.traderLogin.toString(),
