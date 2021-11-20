@@ -42,7 +42,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return this.#cTraderBrokerAccountId;
     }
 
-    public async getBalance (): Promise<number> {
+    public override async getBalance (): Promise<number> {
         const accountDescriptor: GenericObject = await this.#getAccountDescriptor();
         const balance = Number(accountDescriptor.balance.toString());
 
@@ -53,7 +53,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return balance / 100;
     }
 
-    public async getSymbols (): Promise<string[]> {
+    public override async getSymbols (): Promise<string[]> {
         await this.#updateSymbolsMap();
 
         return [ ...this.#symbolsMap.values(), ].map((symbol): string => symbol.symbolName);
