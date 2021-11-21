@@ -1,4 +1,4 @@
-export type CTraderAppParameters = {
+export type CTraderApplicationParameters = {
     clientId: string;
     clientSecret: string;
 };

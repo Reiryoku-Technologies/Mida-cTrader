@@ -1,5 +1,5 @@
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
-import { CTraderAppParameters } from "#brokers/ctrader/CTraderAppParameters";
+import { CTraderApplicationParameters } from "#brokers/ctrader/CTraderApplicationParameters";
 import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
 import {
     GenericObject,
@@ -9,7 +9,7 @@ import {
 } from "@reiryoku/mida";
 import { CTraderPlugin } from "#CTraderPlugin";
 
-export class CTraderApp {
+export class CTraderApplication {
     readonly #clientId: string;
     readonly #clientSecret: string;
     readonly #demoConnection: CTraderConnection;
@@ -19,7 +19,7 @@ export class CTraderApp {
     #isConnected: boolean;
     #isAuthenticated: boolean;
 
-    private constructor ({ clientId, clientSecret, }: CTraderAppParameters) {
+    private constructor ({ clientId, clientSecret, }: CTraderApplicationParameters) {
         this.#clientId = clientId;
         this.#clientSecret = clientSecret;
         this.#demoConnection = new CTraderConnection({ host: "demo.ctraderapi.com", port: 5035, });
@@ -42,7 +42,7 @@ export class CTraderApp {
         this.#isConnected = true;
     }
 
-    public async authenticateApp (): Promise<void> {
+    public async authenticateApplication (): Promise<void> {
         // <demo>
         const demoConnection = this.#demoConnection;
 
@@ -96,21 +96,21 @@ export class CTraderApp {
         });
     }
 
-    static readonly #apps: Map<string, CTraderApp> = new Map();
+    static readonly #applications: Map<string, CTraderApplication> = new Map();
 
-    public static async create ({ clientId, clientSecret, }: CTraderAppParameters): Promise<CTraderApp> {
-        const app: CTraderApp = CTraderApp.#apps.get(clientId) ?? new CTraderApp({ clientId, clientSecret, });
+    public static async create ({ clientId, clientSecret, }: CTraderApplicationParameters): Promise<CTraderApplication> {
+        const application: CTraderApplication = CTraderApplication.#applications.get(clientId) ?? new CTraderApplication({ clientId, clientSecret, });
 
-        if (!app.isConnected) {
-            await app.openConnections();
+        if (!application.isConnected) {
+            await application.openConnections();
         }
 
-        if (!app.isAuthenticated) {
-            await app.authenticateApp();
+        if (!application.isAuthenticated) {
+            await application.authenticateApplication();
         }
 
-        CTraderApp.#apps.set(clientId, app);
+        CTraderApplication.#applications.set(clientId, application);
 
-        return app;
+        return application;
     }
 }

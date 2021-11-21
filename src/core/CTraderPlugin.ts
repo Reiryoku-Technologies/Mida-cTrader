@@ -3,27 +3,17 @@ import {
     MidaPluginActions,
     MidaPluginParameters,
 } from "@reiryoku/mida";
-import { CTraderPluginInstallOptions } from "#CTraderPluginInstallOptions";
+import { CTraderPluginOptions } from "#CTraderPluginOptions";
 import { CTraderBroker } from "#brokers/ctrader/CTraderBroker";
 
 export class CTraderPlugin extends MidaPlugin {
-    static #broker: CTraderBroker = new CTraderBroker();
+    static readonly #broker: CTraderBroker = new CTraderBroker();
 
-    public constructor ({
-        id,
-        name,
-        version,
-        description,
-    }: MidaPluginParameters) {
-        super({
-            id,
-            name,
-            version,
-            description,
-        });
+    public constructor (parameters: MidaPluginParameters) {
+        super(parameters);
     }
 
-    public override install (actions: MidaPluginActions, options?: CTraderPluginInstallOptions): void {
+    public override install (actions: MidaPluginActions, options: CTraderPluginOptions = {}): void {
         actions.addBroker(CTraderPlugin.#broker);
     }
 
