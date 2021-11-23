@@ -1,9 +1,13 @@
 import {
     GenericObject,
     MidaAsset,
-    MidaBrokerAccount, MidaDate,
-    MidaSymbol,
+    MidaBrokerAccount,
     MidaBrokerDeal,
+    MidaBrokerDealDirection,
+    MidaBrokerDealPurpose, MidaBrokerDealRejection,
+    MidaBrokerDealStatus,
+    MidaDate,
+    MidaSymbol,
     MidaSymbolCategory,
     MidaSymbolTick,
 } from "@reiryoku/mida";
@@ -15,9 +19,9 @@ import { CTraderBrokerAccountParameters } from "#brokers/ctrader/CTraderBrokerAc
 export class CTraderBrokerAccount extends MidaBrokerAccount {
     readonly #connection: CTraderConnection;
     readonly #cTraderBrokerAccountId: string;
-    readonly #assetsMap: Map<string, GenericObject>;
-    readonly #symbolsMap: Map<string, GenericObject>;
-    readonly #watchedSymbolsMap: Map<string, number>;
+    readonly #assets: Map<string, GenericObject>;
+    readonly #symbols: Map<string, GenericObject>;
+    readonly #watchedSymbols: Map<string, number>;
     readonly #orders: Map<string, GenericObject>;
     readonly #deals: Map<string, GenericObject>;
     readonly #positions: Map<string, GenericObject>;
@@ -49,9 +53,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         this.#connection = connection;
         this.#cTraderBrokerAccountId = cTraderBrokerAccountId;
-        this.#assetsMap = new Map();
-        this.#symbolsMap = new Map();
-        this.#watchedSymbolsMap = new Map();
+        this.#assets = new Map();
+        this.#symbols = new Map();
+        this.#watchedSymbols = new Map();
         this.#orders = new Map();
         this.#deals = new Map();
         this.#positions = new Map();
@@ -75,9 +79,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async getAssets (): Promise<MidaAsset[]> {
-        await this.#updateAssetsMap();
+        await this.#updateAssets();
 
-        return [ ...this.#assetsMap.values(), ].map((asset): MidaAsset => new MidaAsset({
+        return [ ...this.#assets.values(), ].map((asset): MidaAsset => new MidaAsset({
             id: asset.id,
             name: asset.name,
             description: "",
@@ -86,15 +90,15 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async getSymbols (): Promise<string[]> {
-        await this.#updateSymbolsMap();
+        await this.#updateSymbols();
 
-        return [ ...this.#symbolsMap.values(), ].map((symbol): string => symbol.symbolName);
+        return [ ...this.#symbols.values(), ].map((symbol): string => symbol.symbolName);
     }
 
     public override async getSymbol (symbol: string): Promise<MidaSymbol | undefined> {
-        await this.#updateSymbolsMap();
+        await this.#updateSymbols();
 
-        const symbolDescriptor = this.#symbolsMap.get(symbol);
+        const symbolDescriptor = this.#symbols.get(symbol);
 
         if (!symbolDescriptor) {
             return undefined;
@@ -120,15 +124,15 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async watchSymbolTicks (symbol: string): Promise<void> {
-        await this.#updateSymbolsMap();
+        await this.#updateSymbols();
 
-        const symbolDescriptor = this.#symbolsMap.get(symbol);
+        const symbolDescriptor = this.#symbols.get(symbol);
 
         if (!symbolDescriptor) {
             return undefined;
         }
 
-        const listenersCount: number = this.#watchedSymbolsMap.get(symbol) ?? 0;
+        const listenersCount: number = this.#watchedSymbols.get(symbol) ?? 0;
 
         if (listenersCount === 0) {
             await this.#connection.sendCommand("ProtoOASubscribeSpotsReq", {
@@ -138,10 +142,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             });
         }
 
-        this.#watchedSymbolsMap.set(symbol, listenersCount + 1);
+        this.#watchedSymbols.set(symbol, listenersCount + 1);
     }
 
-    public override async getDeals (fromTimestamp: number, toTimestamp: number): Promise<MidaBrokerDeal[]> {
+    public override async getDeals (fromTimestamp?: number, toTimestamp?: number): Promise<MidaBrokerDeal[]> {
+        await this.#updateDeals(fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24, toTimestamp ?? Date.now());
+
         return [];
     }
 
@@ -151,8 +157,8 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         })).trader;
     }
 
-    async #updateAssetsMap (): Promise<void> {
-        const assetsMap: Map<string, GenericObject> = this.#assetsMap;
+    async #updateAssets (): Promise<void> {
+        const assetsMap: Map<string, GenericObject> = this.#assets;
         const assets: GenericObject[] = (await this.#connection.sendCommand("ProtoOAAssetListReq", {
             ctidTraderAccountId: this.#cTraderBrokerAccountId,
         })).asset;
@@ -163,8 +169,8 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         });
     }
 
-    async #updateSymbolsMap (): Promise<void> {
-        const symbolsMap: Map<string, GenericObject> = this.#symbolsMap;
+    async #updateSymbols (): Promise<void> {
+        const symbolsMap: Map<string, GenericObject> = this.#symbols;
         const symbols: GenericObject[] = (await this.#connection.sendCommand("ProtoOASymbolsListReq", {
             ctidTraderAccountId: this.#cTraderBrokerAccountId,
         })).symbol;
@@ -172,6 +178,20 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         symbolsMap.clear();
         symbols.forEach((symbol: GenericObject): void => {
             symbolsMap.set(symbol.symbolName, symbol);
+        });
+    }
+
+    async #updateDeals (fromTimestamp: number, toTimestamp: number): Promise<void> {
+        const dealsMap: Map<string, GenericObject> = this.#deals;
+        const deals: GenericObject[] = (await this.#connection.sendCommand("ProtoOADealListReq", {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+            fromTimestamp,
+            toTimestamp,
+            maxRows: 1000,
+        })).deal;
+
+        deals.forEach((deal: GenericObject): void => {
+            dealsMap.set(deal.dealId.toString(), deal);
         });
     }
 
@@ -208,17 +228,129 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         // </ticks>
     }
 
-    #descriptorToDeal (descriptor: GenericObject): MidaBrokerDeal {
+    #getSymbolDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#symbols.values(), ].find((symbol: GenericObject) => symbol.symbolId.toString() === id);
+    }
+
+    #getAssetDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#assets.values(), ].find((asset: GenericObject) => asset.assetId.toString() === id);
+    }
+
+    #getOrderDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#deals.values(), ].find((order: GenericObject) => order.orderId.toString() === id);
+    }
+
+    #getDealDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#deals.values(), ].find((deal: GenericObject) => deal.dealId.toString() === id);
+    }
+
+    #getDealsDescriptorsByOrderId (id: string): GenericObject[] {
+        return [ ...this.#deals.values(), ].filter((deal: GenericObject) => deal.orderId.toString() === id);
+    }
+
+    #getDealsDescriptorsByPositionId (id: string): GenericObject[] {
+        return [ ...this.#deals.values(), ].filter((deal: GenericObject) => deal.positionId && deal.positionId.toString() === id);
+    }
+
+    #getPositionDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#positions.values(), ].find((position: GenericObject) => position.positionId.toString() === id);
+    }
+
+    // eslint-disable-next-line max-lines-per-function
+    #normalizeDealDescriptor (descriptor: GenericObject): MidaBrokerDeal {
         const id = descriptor.dealId.toString();
         const orderId = descriptor.orderId.toString();
         const positionId = descriptor.positionId.toString();
+        const symbol = this.#getSymbolDescriptorById(descriptor.symbolId.toString())?.symbolName;
         const requestedVolume = Number(descriptor.volume) / 100;
         const filledVolume = Number(descriptor.filledVolume) / 100;
-        const symbolId = descriptor.symbolId.toString();
+        let direction: MidaBrokerDealDirection;
+
+        switch (descriptor.tradeSide) {
+            case "SELL": {
+                direction = MidaBrokerDealDirection.SELL;
+
+                break;
+            }
+            case "BUY": {
+                direction = MidaBrokerDealDirection.BUY;
+
+                break;
+            }
+            default: {
+                throw new Error();
+            }
+        }
+
+        let status: MidaBrokerDealStatus;
+        let rejection: MidaBrokerDealRejection | undefined = undefined;
+
+        switch (descriptor.status) {
+            case "PARTIALLY_FILLED": {
+                status = MidaBrokerDealStatus.PARTIALLY_FILLED;
+
+                break;
+            }
+            case "FILLED": {
+                status = MidaBrokerDealStatus.FILLED;
+
+                break;
+            }
+            case "REJECTED":
+            case "INTERNALLY_REJECTED":
+            case "ERROR":
+            case "MISSED": {
+                status = MidaBrokerDealStatus.REJECTED;
+
+                break;
+            }
+            default: {
+                throw new Error();
+            }
+        }
+
+        const purpose: MidaBrokerDealPurpose = descriptor.closePositionDetail ? MidaBrokerDealPurpose.CLOSE : MidaBrokerDealPurpose.OPEN;
         const requestDate = new MidaDate({ timestamp: Number(descriptor.createTimestamp), });
         const executionDate = new MidaDate({ timestamp: Number(descriptor.executionTimestamp), });
+        const rejectionDate: MidaDate | undefined = undefined;
+        const executionPrice: number = Number(descriptor.executionPrice);
+        const grossProfit: number | undefined = ((): number | undefined => {
+            if (purpose === MidaBrokerDealPurpose.CLOSE) {
+                return Number(descriptor.closePositionDetail.grossProfit) / 100;
+            }
 
-        // @ts-ignore
-        return undefined;
+            return undefined;
+        })();
+        const commission: number = Number(descriptor.commission) / 100;
+        const swap: number | undefined = ((): number | undefined => {
+            if (purpose === MidaBrokerDealPurpose.CLOSE) {
+                return Number(descriptor.closePositionDetail.swap) / 100;
+            }
+
+            return undefined;
+        })();
+
+        return new MidaBrokerDeal({
+            id,
+            // @ts-ignore
+            order: undefined,
+            position: undefined,
+            symbol,
+            requestedVolume,
+            filledVolume,
+            direction,
+            status,
+            purpose,
+            requestDate,
+            executionDate,
+            rejectionDate,
+            closedByDeals: [],
+            closedDeals: [],
+            executionPrice,
+            grossProfit,
+            commission,
+            swap,
+            rejection,
+        });
     }
 }
