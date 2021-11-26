@@ -4,8 +4,10 @@ import {
     MidaBrokerAccount,
     MidaBrokerDeal,
     MidaBrokerDealDirection,
-    MidaBrokerDealPurpose, MidaBrokerDealRejection,
+    MidaBrokerDealPurpose,
+    MidaBrokerDealRejection,
     MidaBrokerDealStatus,
+    MidaBrokerPositionDirection,
     MidaDate,
     MidaSymbol,
     MidaSymbolCategory,
@@ -21,10 +23,11 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     readonly #cTraderBrokerAccountId: string;
     readonly #assets: Map<string, GenericObject>;
     readonly #symbols: Map<string, GenericObject>;
-    readonly #watchedSymbols: Map<string, number>;
+    readonly #tickListeners: Map<string, number>;
     readonly #orders: Map<string, GenericObject>;
     readonly #deals: Map<string, GenericObject>;
     readonly #positions: Map<string, GenericObject>;
+    readonly #lastTicks: Map<string, MidaSymbolTick>;
 
     public constructor ({
         id,
@@ -55,10 +58,11 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         this.#cTraderBrokerAccountId = cTraderBrokerAccountId;
         this.#assets = new Map();
         this.#symbols = new Map();
-        this.#watchedSymbols = new Map();
+        this.#tickListeners = new Map();
         this.#orders = new Map();
         this.#deals = new Map();
         this.#positions = new Map();
+        this.#lastTicks = new Map();
 
         this.#configureListeners();
     }
@@ -76,6 +80,22 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
 
         return balance / 100;
+    }
+
+    public override async getUsedMargin (): Promise<number> {
+        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
+        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
+        let usedMargin: number = 0;
+
+        for (const plainOpenPosition of plainOpenPositions) {
+            usedMargin += Number(plainOpenPosition.usedMargin);
+        }
+
+        return usedMargin / 100;
+    }
+
+    public override async getEquity (): Promise<number> {
+        return 0;
     }
 
     public override async getAssets (): Promise<MidaAsset[]> {
@@ -104,11 +124,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             return undefined;
         }
 
-        const completeSymbol: any = (await this.#connection.sendCommand("ProtoOASymbolByIdReq", {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+        const completeSymbol: GenericObject = (await this.#sendCommand("ProtoOASymbolByIdReq", {
             symbolId: symbolDescriptor.symbolId,
         })).symbol[0];
         const lotUnits = Number(completeSymbol.lotSize) / 100;
+
+        console.log(completeSymbol);
 
         return new MidaSymbol({
             symbol,
@@ -116,7 +137,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             description: symbolDescriptor.description,
             type: MidaSymbolCategory.FOREX,
             digits: completeSymbol.digits,
-            leverage: 30,
+            leverage: -1, // Not supported
             minLots: Number(completeSymbol.minVolume) / 100 / lotUnits,
             maxLots: Number(completeSymbol.maxVolume) / 100 / lotUnits,
             lotUnits,
@@ -132,17 +153,16 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             return undefined;
         }
 
-        const listenersCount: number = this.#watchedSymbols.get(symbol) ?? 0;
+        const listenersCount: number = this.#tickListeners.get(symbol) ?? 0;
 
         if (listenersCount === 0) {
-            await this.#connection.sendCommand("ProtoOASubscribeSpotsReq", {
-                ctidTraderAccountId: this.#cTraderBrokerAccountId,
+            await this.#sendCommand("ProtoOASubscribeSpotsReq", {
                 symbolId: symbolDescriptor.symbolId,
                 // subscribeToSpotTimestamp: true,
             });
         }
 
-        this.#watchedSymbols.set(symbol, listenersCount + 1);
+        this.#tickListeners.set(symbol, listenersCount + 1);
     }
 
     public override async getDeals (fromTimestamp?: number, toTimestamp?: number): Promise<MidaBrokerDeal[]> {
@@ -151,113 +171,21 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return [];
     }
 
-    async #getAccountDescriptor (): Promise<GenericObject> {
-        return (await this.#connection.sendCommand("ProtoOATraderReq", {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
-        })).trader;
+    public override async getSymbolLastTick (symbol: string): Promise<MidaSymbolTick> {
+        // @ts-ignore
+        return this.#lastTicks.get(symbol);
     }
 
-    async #updateAssets (): Promise<void> {
-        const assetsMap: Map<string, GenericObject> = this.#assets;
-        const assets: GenericObject[] = (await this.#connection.sendCommand("ProtoOAAssetListReq", {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
-        })).asset;
-
-        assetsMap.clear();
-        assets.forEach((asset: GenericObject): void => {
-            assetsMap.set(asset.name, asset);
-        });
+    public override async getSymbolBid (symbol: string): Promise<number> {
+        return (await this.getSymbolLastTick(symbol)).bid;
     }
 
-    async #updateSymbols (): Promise<void> {
-        const symbolsMap: Map<string, GenericObject> = this.#symbols;
-        const symbols: GenericObject[] = (await this.#connection.sendCommand("ProtoOASymbolsListReq", {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
-        })).symbol;
-
-        symbolsMap.clear();
-        symbols.forEach((symbol: GenericObject): void => {
-            symbolsMap.set(symbol.symbolName, symbol);
-        });
-    }
-
-    async #updateDeals (fromTimestamp: number, toTimestamp: number): Promise<void> {
-        const dealsMap: Map<string, GenericObject> = this.#deals;
-        const deals: GenericObject[] = (await this.#connection.sendCommand("ProtoOADealListReq", {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
-            fromTimestamp,
-            toTimestamp,
-            maxRows: 1000,
-        })).deal;
-
-        deals.forEach((deal: GenericObject): void => {
-            dealsMap.set(deal.dealId.toString(), deal);
-        });
-    }
-
-    #onTick (descriptor: GenericObject): void {
-        this.notifyListeners("tick", {
-            tick: new MidaSymbolTick({
-                symbol: "BTCUSD",
-                bid: Number(descriptor.bid) / 100 / 1000,
-                ask: Number(descriptor.ask) / 100 / 1000,
-                date: new MidaDate(),
-            }),
-        });
-    }
-
-    #onExecution (descriptor: GenericObject): void {
-
-    }
-
-    #configureListeners (): void {
-        // <execution>
-        this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
-            if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
-                this.#onExecution(descriptor);
-            }
-        });
-        // </execution>
-
-        // <ticks>
-        this.#connection.on("ProtoOASpotEvent", (descriptor: GenericObject): void => {
-            if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
-                this.#onTick(descriptor);
-            }
-        });
-        // </ticks>
-    }
-
-    #getSymbolDescriptorById (id: string): GenericObject | undefined {
-        return [ ...this.#symbols.values(), ].find((symbol: GenericObject) => symbol.symbolId.toString() === id);
-    }
-
-    #getAssetDescriptorById (id: string): GenericObject | undefined {
-        return [ ...this.#assets.values(), ].find((asset: GenericObject) => asset.assetId.toString() === id);
-    }
-
-    #getOrderDescriptorById (id: string): GenericObject | undefined {
-        return [ ...this.#deals.values(), ].find((order: GenericObject) => order.orderId.toString() === id);
-    }
-
-    #getDealDescriptorById (id: string): GenericObject | undefined {
-        return [ ...this.#deals.values(), ].find((deal: GenericObject) => deal.dealId.toString() === id);
-    }
-
-    #getDealsDescriptorsByOrderId (id: string): GenericObject[] {
-        return [ ...this.#deals.values(), ].filter((deal: GenericObject) => deal.orderId.toString() === id);
-    }
-
-    #getDealsDescriptorsByPositionId (id: string): GenericObject[] {
-        return [ ...this.#deals.values(), ].filter((deal: GenericObject) => deal.positionId && deal.positionId.toString() === id);
-    }
-
-    #getPositionDescriptorById (id: string): GenericObject | undefined {
-        return [ ...this.#positions.values(), ].find((position: GenericObject) => position.positionId.toString() === id);
+    public override async getSymbolAsk (symbol: string): Promise<number> {
+        return (await this.getSymbolLastTick(symbol)).ask;
     }
 
     // eslint-disable-next-line max-lines-per-function
-    #normalizeDealDescriptor (descriptor: GenericObject): MidaBrokerDeal {
+    public descriptorToDeal (descriptor: GenericObject): MidaBrokerDeal {
         const id = descriptor.dealId.toString();
         const orderId = descriptor.orderId.toString();
         const positionId = descriptor.positionId.toString();
@@ -283,7 +211,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
 
         let status: MidaBrokerDealStatus;
-        let rejection: MidaBrokerDealRejection | undefined = undefined;
+        const rejection: MidaBrokerDealRejection | undefined = undefined;
 
         switch (descriptor.status) {
             case "PARTIALLY_FILLED": {
@@ -351,6 +279,153 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             commission,
             swap,
             rejection,
+        });
+    }
+
+    async #getAccountDescriptor (): Promise<GenericObject> {
+        return (await this.#connection.sendCommand("ProtoOATraderReq", {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+        })).trader;
+    }
+
+    async #updateAssets (): Promise<void> {
+        const assetsMap: Map<string, GenericObject> = this.#assets;
+        const assets: GenericObject[] = (await this.#connection.sendCommand("ProtoOAAssetListReq", {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+        })).asset;
+
+        assetsMap.clear();
+        assets.forEach((asset: GenericObject): void => {
+            assetsMap.set(asset.name, asset);
+        });
+    }
+
+    async #updateSymbols (): Promise<void> {
+        const symbolsMap: Map<string, GenericObject> = this.#symbols;
+        const symbols: GenericObject[] = (await this.#connection.sendCommand("ProtoOASymbolsListReq", {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+        })).symbol;
+
+        symbolsMap.clear();
+        symbols.forEach((symbol: GenericObject): void => {
+            symbolsMap.set(symbol.symbolName, symbol);
+        });
+    }
+
+    async #updateDeals (fromTimestamp: number, toTimestamp: number): Promise<void> {
+        const dealsMap: Map<string, GenericObject> = this.#deals;
+        const deals: GenericObject[] = (await this.#connection.sendCommand("ProtoOADealListReq", {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+            fromTimestamp,
+            toTimestamp,
+            maxRows: 1000,
+        })).deal;
+
+        deals.forEach((deal: GenericObject): void => {
+            dealsMap.set(deal.dealId.toString(), deal);
+        });
+    }
+
+    #onTick (descriptor: GenericObject): void {
+        const tick: MidaSymbolTick = new MidaSymbolTick({
+            symbol: "BTCUSD",
+            bid: Number(descriptor.bid) / 100 / 1000,
+            ask: Number(descriptor.ask) / 100 / 1000,
+            date: new MidaDate(),
+        });
+        const symbol: string = tick.symbol;
+
+        this.#lastTicks.set(symbol, tick);
+
+        if (this.#tickListeners.has(symbol)) {
+            this.notifyListeners("tick", { tick, });
+        }
+    }
+
+    #onExecution (descriptor: GenericObject): void {
+        console.log(descriptor);
+    }
+
+    #configureListeners (): void {
+        // <execution>
+        this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
+            if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
+                this.#onExecution(descriptor);
+            }
+        });
+        // </execution>
+
+        // <ticks>
+        this.#connection.on("ProtoOASpotEvent", (descriptor: GenericObject): void => {
+            if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
+                this.#onTick(descriptor);
+            }
+        });
+        // </ticks>
+    }
+
+    #getSymbolDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#symbols.values(), ].find((symbol: GenericObject) => symbol.symbolId.toString() === id);
+    }
+
+    #getAssetDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#assets.values(), ].find((asset: GenericObject) => asset.assetId.toString() === id);
+    }
+
+    #getOrderDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#deals.values(), ].find((order: GenericObject) => order.orderId.toString() === id);
+    }
+
+    #getDealDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#deals.values(), ].find((deal: GenericObject) => deal.dealId.toString() === id);
+    }
+
+    #getDealsDescriptorsByOrderId (id: string): GenericObject[] {
+        return [ ...this.#deals.values(), ].filter((deal: GenericObject) => deal.orderId.toString() === id);
+    }
+
+    #getDealsDescriptorsByPositionId (id: string): GenericObject[] {
+        return [ ...this.#deals.values(), ].filter((deal: GenericObject) => deal.positionId && deal.positionId.toString() === id);
+    }
+
+    #getPositionDescriptorById (id: string): GenericObject | undefined {
+        return [ ...this.#positions.values(), ].find((position: GenericObject) => position.positionId.toString() === id);
+    }
+
+    async #getPlainPositionGrossProfit (plainPosition: GenericObject): Promise<number> {
+        const symbol: string = this.#getSymbolDescriptorById(plainPosition.tradeData.symbolId)?.symbolName;
+        const volume: number = Number(plainPosition.tradeData.volume) / 100;
+        const entryPrice: number = Number(plainPosition.price);
+        const lastSymbolTick: MidaSymbolTick = await this.getSymbolLastTick(symbol);
+        const pipSize: number = 1 / Math.pow(10, 2/* pip pos */);
+        let direction: MidaBrokerPositionDirection;
+        let closePrice: number;
+
+        switch (Number(plainPosition.tradeData.tradeSide)) {
+            case 1: { // BUY
+                direction = MidaBrokerPositionDirection.LONG;
+                closePrice = lastSymbolTick.bid;
+
+                break;
+            }
+            case 2: { // SELL
+                direction = MidaBrokerPositionDirection.SHORT;
+                closePrice = lastSymbolTick.ask;
+
+                break;
+            }
+            default: {
+                throw new Error();
+            }
+        }
+
+        return 0;
+    }
+
+    async #sendCommand (payloadType: string, parameters: GenericObject = {}): Promise<GenericObject> {
+        return this.#connection.sendCommand(payloadType, {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+            ...parameters,
         });
     }
 }
