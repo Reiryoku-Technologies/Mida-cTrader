@@ -17,7 +17,6 @@ import {
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
 import { CTraderBrokerAccountParameters } from "#brokers/ctrader/CTraderBrokerAccountParameters";
 
-
 // @ts-ignore
 export class CTraderBrokerAccount extends MidaBrokerAccount {
     readonly #connection: CTraderConnection;
@@ -220,16 +219,16 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     // eslint-disable-next-line max-lines-per-function
-    public descriptorToDeal (descriptor: GenericObject): MidaBrokerDeal {
-        const id = descriptor.dealId.toString();
-        const orderId = descriptor.orderId.toString();
-        const positionId = descriptor.positionId.toString();
-        const symbol = this.#getSymbolDescriptorById(descriptor.symbolId.toString())?.symbolName;
-        const requestedVolume = Number(descriptor.volume) / 100;
-        const filledVolume = Number(descriptor.filledVolume) / 100;
+    public normalizeDeal (plainDeal: GenericObject): MidaBrokerDeal {
+        const id = plainDeal.dealId.toString();
+        const orderId = plainDeal.orderId.toString();
+        const positionId = plainDeal.positionId.toString();
+        const symbol = this.#getSymbolDescriptorById(plainDeal.symbolId.toString())?.symbolName;
+        const requestedVolume = Number(plainDeal.volume) / 100;
+        const filledVolume = Number(plainDeal.filledVolume) / 100;
         let direction: MidaBrokerDealDirection;
 
-        switch (descriptor.tradeSide) {
+        switch (plainDeal.tradeSide) {
             case "SELL": {
                 direction = MidaBrokerDealDirection.SELL;
 
@@ -248,7 +247,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         let status: MidaBrokerDealStatus;
         const rejection: MidaBrokerDealRejection | undefined = undefined;
 
-        switch (descriptor.status) {
+        switch (plainDeal.status) {
             case "PARTIALLY_FILLED": {
                 status = MidaBrokerDealStatus.PARTIALLY_FILLED;
 
@@ -272,22 +271,22 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             }
         }
 
-        const purpose: MidaBrokerDealPurpose = descriptor.closePositionDetail ? MidaBrokerDealPurpose.CLOSE : MidaBrokerDealPurpose.OPEN;
-        const requestDate = new MidaDate({ timestamp: Number(descriptor.createTimestamp), });
-        const executionDate = new MidaDate({ timestamp: Number(descriptor.executionTimestamp), });
+        const purpose: MidaBrokerDealPurpose = plainDeal.closePositionDetail ? MidaBrokerDealPurpose.CLOSE : MidaBrokerDealPurpose.OPEN;
+        const requestDate = new MidaDate({ timestamp: Number(plainDeal.createTimestamp), });
+        const executionDate = new MidaDate({ timestamp: Number(plainDeal.executionTimestamp), });
         const rejectionDate: MidaDate | undefined = undefined;
-        const executionPrice: number = Number(descriptor.executionPrice);
+        const executionPrice: number = Number(plainDeal.executionPrice);
         const grossProfit: number | undefined = ((): number | undefined => {
             if (purpose === MidaBrokerDealPurpose.CLOSE) {
-                return Number(descriptor.closePositionDetail.grossProfit) / 100;
+                return Number(plainDeal.closePositionDetail.grossProfit) / 100;
             }
 
             return undefined;
         })();
-        const commission: number = Number(descriptor.commission) / 100;
+        const commission: number = Number(plainDeal.commission) / 100;
         const swap: number | undefined = ((): number | undefined => {
             if (purpose === MidaBrokerDealPurpose.CLOSE) {
-                return Number(descriptor.closePositionDetail.swap) / 100;
+                return Number(plainDeal.closePositionDetail.swap) / 100;
             }
 
             return undefined;
@@ -436,8 +435,6 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     async #getPlainPositionGrossProfit (plainPosition: GenericObject): Promise<number> {
         await this.#updateSymbols();
 
-        console.log(plainPosition);
-
         const plainSymbol: GenericObject | undefined = this.#getSymbolDescriptorById(plainPosition.tradeData.symbolId);
         const symbol: string = plainSymbol?.symbolName;
 
@@ -457,7 +454,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         let closePrice: number;
 
         switch (plainPosition.tradeData.tradeSide.toUpperCase()) {
-            case "SELL": { // SELL
+            case "SELL": {
                 direction = MidaBrokerPositionDirection.SHORT;
                 closePrice = lastSymbolTick.ask;
 
@@ -512,12 +509,11 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     async #getPlainPositionNetProfit (plainPosition: GenericObject): Promise<number> {
-        const depositDigits: number = Number(plainPosition.moneyDigits);
-        const grossProfit: number = Number((await this.#getPlainPositionGrossProfit(plainPosition)).toFixed(depositDigits));
-        const totalCommission: number = Number((Number(plainPosition.commission) / 100 * 2).toFixed(depositDigits));
-        const totalSwap: number = Number((Number(plainPosition.swap) / 100).toFixed(depositDigits));
+        const grossProfit: number = await this.#getPlainPositionGrossProfit(plainPosition);
+        const totalCommission: number = Number(plainPosition.commission) / 100 * 2;
+        const totalSwap: number = Number(plainPosition.swap) / 100;
 
-        return Number((grossProfit + totalCommission + totalSwap).toFixed(depositDigits));
+        return grossProfit + totalCommission + totalSwap;
     }
 
     async #sendCommand (payloadType: string, parameters: GenericObject = {}): Promise<GenericObject> {
