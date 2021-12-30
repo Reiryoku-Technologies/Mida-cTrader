@@ -5,11 +5,12 @@
     "license": "MIT",
     "homepage": "https://github.com/Reiryoku-Technologies/Mida-cTrader",
     "bugs": {
-        "url": "https://github.com/Reiryoku-Technologies/Mida-cTrader/issues"
+        "url": "https://github.com/Reiryoku-Technologies/Mida-cTrader/issues",
+        "email": "dev@reiryoku.com"
     },
     "author": {
         "name": "Vasile Pește / Reiryoku Technologies",
-        "email": "vasile.peste@protonmail.ch"
+        "email": "vasile.peste@reiryoku.com"
     },
     "repository": {
         "type": "git",
@@ -32,7 +33,7 @@
         "tests"
     ],
     "dependencies": {
-        "@reiryoku/ctrader-layer": "^1.4.1"
+        "@reiryoku/ctrader-layer": "^1.6.0"
     },
     "devDependencies": {
         "@reiryoku/eslint-config-reiryoku": "^1.0.0",

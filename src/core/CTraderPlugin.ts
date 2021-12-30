@@ -6,6 +6,8 @@ import {
 import { CTraderPluginOptions } from "#CTraderPluginOptions";
 import { CTraderBroker } from "#brokers/ctrader/CTraderBroker";
 
+export const ORDER_SIGNATURE: string = "Mida/cTrader";
+
 export class CTraderPlugin extends MidaPlugin {
     public constructor (parameters: MidaPluginParameters) {
         super(parameters);
