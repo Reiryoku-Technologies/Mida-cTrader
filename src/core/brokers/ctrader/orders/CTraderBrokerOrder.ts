@@ -1,9 +1,8 @@
 import {
     GenericObject,
     MidaBrokerOrder,
-    MidaBrokerOrderRejection,
+    MidaBrokerOrderRejectionType,
     MidaBrokerOrderStatus,
-    MidaBrokerPositionProtection,
     MidaDate,
 } from "@reiryoku/mida";
 import { CTraderBrokerOrderParameters } from "#brokers/ctrader/orders/CTraderBrokerOrderParameters";
@@ -21,15 +20,15 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
         requestedVolume,
         direction,
         purpose,
-        limit,
-        stop,
+        limitPrice,
+        stopPrice,
         status,
         creationDate,
         lastUpdateDate,
         timeInForce,
         deals,
         position,
-        rejection,
+        rejectionType,
         isStopOut,
         uuid,
         connection,
@@ -41,15 +40,15 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             requestedVolume,
             direction,
             purpose,
-            limit,
-            stop,
+            limitPrice,
+            stopPrice,
             status,
             creationDate,
             lastUpdateDate,
             timeInForce,
             deals,
             position,
-            rejection,
+            rejectionType,
             isStopOut,
         });
 
@@ -76,16 +75,17 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
     }
 
     public override async cancel (): Promise<void> {
+        if (this.status !== MidaBrokerOrderStatus.PENDING) {
+            return;
+        }
+
         await this.#connection.sendCommand("ProtoOACancelOrderReq", {
             ctidTraderAccountId: this.#cTraderBrokerAccountId,
             orderId: this.id,
         });
     }
 
-    public override async modifyPositionProtection (protection: MidaBrokerPositionProtection): Promise<void> {
-        throw new Error();
-    }
-
+    // eslint-disable-next-line max-lines-per-function
     #onUpdate (descriptor: GenericObject): void {
         const order: GenericObject = descriptor.order;
         const orderId: string = order.orderId;
@@ -103,7 +103,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
         const lastUpdateTimestamp: number = Number(order.utcLastUpdateTimestamp);
 
         if (!this.lastUpdateDate || this.lastUpdateDate.timestamp !== lastUpdateTimestamp) {
-            this.lastUpdateDate = new MidaDate({ timestamp: Number(order.utcLastUpdateTimestamp), });
+            this.lastUpdateDate = new MidaDate({ timestamp: lastUpdateTimestamp, });
         }
 
         switch (descriptor.executionType) {
@@ -117,8 +117,10 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
                 }
 
-                this.onDeal(this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
-                this.onStatusChange(MidaBrokerOrderStatus.FILLED);
+                (async (): Promise<void> => {
+                    this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
+                    this.onStatusChange(MidaBrokerOrderStatus.FILLED);
+                })();
 
                 break;
             }
@@ -138,20 +140,25 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
                 break;
             }
             case "ORDER_PARTIAL_FILL": {
-                this.onDeal(this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
-                this.onStatusChange(MidaBrokerOrderStatus.PARTIALLY_FILLED);
+                (async (): Promise<void> => {
+                    this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
+                    this.onStatusChange(MidaBrokerOrderStatus.PARTIALLY_FILLED);
+                })();
 
                 break;
             }
         }
     }
 
+    // eslint-disable-next-line max-lines-per-function
     #configureListeners (): void {
         // <execution>
         this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
+            const orderId: string | undefined = descriptor?.order?.orderId?.toString();
+
             if (
                 descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId &&
-                (descriptor?.order?.orderId.toString() === this.id || descriptor.clientMsgId === this.#uuid)
+                (orderId && orderId === this.id || descriptor.clientMsgId === this.#uuid)
             ) {
                 this.#onUpdate(descriptor);
             }
@@ -160,9 +167,11 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
         // <error>
         this.#connection.on("ProtoOAOrderErrorEvent", (descriptor: GenericObject): void => {
+            const orderId: string | undefined = descriptor?.order?.orderId?.toString();
+
             if (
                 descriptor.ctidTraderAccountId.toString() !== this.#cTraderBrokerAccountId ||
-                !(descriptor?.orderId.toString() === this.id || descriptor.clientMsgId === this.#uuid)
+                !(orderId && orderId === this.id || descriptor.clientMsgId === this.#uuid)
             ) {
                 return;
             }
@@ -172,25 +181,33 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             switch (descriptor.errorCode) {
                 case "MARKET_CLOSED":
                 case "SYMBOL_HAS_HOLIDAY": {
-                    this.rejection = MidaBrokerOrderRejection.MARKET_CLOSED;
+                    this.rejectionType = MidaBrokerOrderRejectionType.MARKET_CLOSED;
 
                     break;
                 }
                 case "SYMBOL_NOT_FOUND":
                 case "UNKNOWN_SYMBOL": {
-                    this.rejection = MidaBrokerOrderRejection.SYMBOL_NOT_FOUND;
+                    this.rejectionType = MidaBrokerOrderRejectionType.SYMBOL_NOT_FOUND;
+
+                    break;
+                }
+                case "TRADING_DISABLED": {
+                    this.rejectionType = MidaBrokerOrderRejectionType.SYMBOL_DISABLED;
 
                     break;
                 }
                 case "NOT_ENOUGH_MONEY": {
-                    this.rejection = MidaBrokerOrderRejection.NOT_ENOUGH_MONEY;
+                    this.rejectionType = MidaBrokerOrderRejectionType.NOT_ENOUGH_MONEY;
 
                     break;
                 }
                 case "TRADING_BAD_VOLUME": {
-                    this.rejection = MidaBrokerOrderRejection.INVALID_VOLUME;
+                    this.rejectionType = MidaBrokerOrderRejectionType.INVALID_VOLUME;
 
                     break;
+                }
+                default: {
+                    throw new Error();
                 }
             }
 

@@ -33,7 +33,7 @@
         "tests"
     ],
     "dependencies": {
-        "@reiryoku/ctrader-layer": "^1.6.0"
+        "@reiryoku/ctrader-layer": "^2.0.0"
     },
     "devDependencies": {
         "@reiryoku/eslint-config-reiryoku": "^1.0.0",
