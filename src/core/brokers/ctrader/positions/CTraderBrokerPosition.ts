@@ -15,20 +15,12 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
 
     public constructor ({
         id,
-        symbol,
-        volume,
-        direction,
-        status,
         orders,
         protection,
         connection,
     }: CTraderBrokerPositionParameters) {
         super({
             id,
-            symbol,
-            volume,
-            direction,
-            status,
             orders,
             protection,
         });
@@ -136,14 +128,10 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
     }
 
     #configureListeners (): void {
-        // <execution>
         this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
-            const positionId: string | undefined = descriptor?.position?.positionId?.toString();
-
-            if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId && positionId === this.id) {
+            if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
                 this.#onUpdate(descriptor);
             }
         });
-        // </execution>
     }
 }

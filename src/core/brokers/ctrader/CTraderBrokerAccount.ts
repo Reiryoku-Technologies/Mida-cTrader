@@ -8,6 +8,7 @@ import {
     MidaBrokerDealRejection,
     MidaBrokerDealStatus,
     MidaBrokerOrder,
+    MidaSymbolTickMovementType,
     MidaBrokerOrderDirection,
     MidaBrokerOrderDirectives,
     MidaBrokerOrderPurpose,
@@ -27,12 +28,12 @@ import { CTraderBrokerAccountParameters } from "#brokers/ctrader/CTraderBrokerAc
 import { CTraderBrokerOrder } from "#brokers/ctrader/orders/CTraderBrokerOrder";
 import { CTraderBrokerDeal } from "#brokers/ctrader/deals/CTraderBrokerDeal";
 import { ORDER_SIGNATURE } from "!/src/core/CTraderPlugin";
-import { MidaSymbolTickMovementType } from "../../../../../Mida/build/src/core/ticks/MidaSymbolTickMovementType";
 
 // @ts-ignore
 export class CTraderBrokerAccount extends MidaBrokerAccount {
     readonly #connection: CTraderConnection;
     readonly #cTraderBrokerAccountId: string;
+    readonly #brokerName: string;
     readonly #assets: Map<string, GenericObject>;
     readonly #symbols: Map<string, GenericObject>;
     readonly #completeSymbols: Map<string, GenericObject>;
@@ -58,6 +59,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         indicativeLeverage,
         connection,
         cTraderBrokerAccountId,
+        brokerName,
     }: CTraderBrokerAccountParameters) {
         super({
             id,
@@ -73,6 +75,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         this.#connection = connection;
         this.#cTraderBrokerAccountId = cTraderBrokerAccountId;
+        this.#brokerName = brokerName;
         this.#assets = new Map();
         this.#symbols = new Map();
         this.#completeSymbols = new Map();
@@ -91,6 +94,10 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
     public get cTraderBrokerAccountId (): string {
         return this.#cTraderBrokerAccountId;
+    }
+
+    public get brokerName (): string {
+        return this.#brokerName;
     }
 
     public async preloadAssetsAndSymbols (): Promise<void> {
