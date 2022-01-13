@@ -12,6 +12,8 @@ import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
 export class CTraderBrokerPosition extends MidaBrokerPosition {
     readonly #connection: CTraderConnection;
     readonly #dispatchedOrders: Map<string, boolean>;
+    readonly #updateQueue: GenericObject[];
+    #updatePromise: Promise<void> | undefined;
 
     public constructor ({
         id,
@@ -27,6 +29,8 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
 
         this.#connection = connection;
         this.#dispatchedOrders = new Map();
+        this.#updateQueue = [];
+        this.#updatePromise = undefined;
 
         // Listen events only if the position is not in a final state
         if (status !== MidaBrokerPositionStatus.CLOSED) {
@@ -47,7 +51,17 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             return 0;
         }
 
-        return 1;
+        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
+        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
+        let usedMargin: number = 0;
+
+        for (const plainOpenPosition of plainOpenPositions) {
+            if (plainOpenPosition.positionId === this.id) {
+                usedMargin += Number(plainOpenPosition.usedMargin);
+            }
+        }
+
+        return usedMargin / 100;
     }
 
     public override async getUnrealizedSwap (): Promise<number> {
@@ -55,7 +69,17 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             return 0;
         }
 
-        return 1;
+        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
+        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
+        let swap: number = 0;
+
+        for (const plainOpenPosition of plainOpenPositions) {
+            if (plainOpenPosition.positionId === this.id) {
+                swap += Number(plainOpenPosition.swap);
+            }
+        }
+
+        return swap / 100;
     }
 
     public override async getUnrealizedCommission (): Promise<number> {
@@ -63,7 +87,17 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             return 0;
         }
 
-        return 1;
+        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
+        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
+        let commission: number = 0;
+
+        for (const plainOpenPosition of plainOpenPositions) {
+            if (plainOpenPosition.positionId === this.id) {
+                commission += Number(plainOpenPosition.commission);
+            }
+        }
+
+        return commission / 100;
     }
 
     public override async getUnrealizedGrossProfit (): Promise<number> {
@@ -71,7 +105,17 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             return 0;
         }
 
-        return 1;
+        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
+        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
+        let unrealizedGrossProfit: number = 0;
+
+        for (const plainOpenPosition of plainOpenPositions) {
+            if (plainOpenPosition.positionId === this.id) {
+                unrealizedGrossProfit += await this.#cTraderBrokerAccount.getPlainPositionGrossProfit(plainOpenPosition);
+            }
+        }
+
+        return unrealizedGrossProfit / 100;
     }
 
     public override async modifyProtection (protection: MidaBrokerPositionProtection): Promise<void> {
@@ -96,42 +140,61 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         await this.modifyProtection({ trailingStopLoss, });
     }
 
-    #onUpdate (descriptor: GenericObject): void {
+    async #onUpdate (descriptor: GenericObject): Promise<void> {
         switch (descriptor.executionType) {
             case "SWAP": {
-                this.onSwap(0);
+                this.onSwap(NaN);
 
                 break;
             }
 
-            case "ORDER_ACCEPTED":
+            /* case "ORDER_ACCEPTED": */
             case "ORDER_FILLED":
-            case "ORDER_CANCELLED":
+            /* case "ORDER_CANCELLED":
             case "ORDER_EXPIRED":
             case "ORDER_REJECTED":
-            case "ORDER_PARTIAL_FILL": {
+            case "ORDER_PARTIAL_FILL": */ {
                 const plainOrder: GenericObject = descriptor.order;
                 const orderId: string = plainOrder?.orderId?.toString();
                 const positionId: string = plainOrder?.positionId?.toString();
 
-                if (
-                    positionId === this.id && orderId &&
-                    !this.#dispatchedOrders.has(orderId) && !this.orders.find((order: MidaBrokerOrder) => order.id === orderId)
-                ) {
+                if (positionId === this.id && orderId && !this.#dispatchedOrders.has(orderId)) {
                     this.#dispatchedOrders.set(orderId, true);
-                    this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder).then((order: MidaBrokerOrder): void => this.onOrder(order));
+                    this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder).then((order: MidaBrokerOrder): void => this.onOrderFill(order));
                 }
 
                 break;
             }
+        }
+
+        // Process next event if there is any
+        const nextDescriptor: GenericObject | undefined = this.#updateQueue.shift();
+
+        if (nextDescriptor) {
+            this.#updatePromise = this.#onUpdate(nextDescriptor);
+        }
+        else {
+            this.#updatePromise = undefined;
         }
     }
 
     #configureListeners (): void {
         this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
-                this.#onUpdate(descriptor);
+                if (this.#updatePromise) {
+                    this.#updateQueue.push(descriptor);
+                }
+                else {
+                    this.#updatePromise = this.#onUpdate(descriptor);
+                }
             }
         });
+    }
+
+    async #sendCommand (payloadType: string, parameters?: GenericObject, messageId?: string): Promise<GenericObject> {
+        return this.#connection.sendCommand(payloadType, {
+            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+            ...parameters ?? {},
+        }, messageId);
     }
 }

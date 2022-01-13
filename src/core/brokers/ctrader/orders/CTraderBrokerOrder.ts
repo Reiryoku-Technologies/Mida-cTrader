@@ -12,6 +12,8 @@ import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
 export class CTraderBrokerOrder extends MidaBrokerOrder {
     readonly #uuid: string;
     readonly #connection: CTraderConnection;
+    readonly #updateQueue: GenericObject[];
+    #updatePromise: Promise<void> | undefined;
 
     public constructor ({
         id,
@@ -54,6 +56,8 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
         this.#uuid = uuid;
         this.#connection = connection;
+        this.#updateQueue = [];
+        this.#updatePromise = undefined;
 
         // Listen events only if the order is not in a final state
         if (
@@ -86,7 +90,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
     }
 
     // eslint-disable-next-line max-lines-per-function
-    #onUpdate (descriptor: GenericObject): void {
+    async #onUpdate (descriptor: GenericObject): Promise<void> {
         const order: GenericObject = descriptor.order;
         const orderId: string = order.orderId;
         const orderCreationTimestamp: number = Number(order.tradeData.openTimestamp);
@@ -97,13 +101,13 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
         }
 
         if (!this.creationDate && Number.isFinite(orderCreationTimestamp)) {
-            this.creationDate = new MidaDate({ timestamp: orderCreationTimestamp, });
+            this.creationDate = new MidaDate(orderCreationTimestamp);
         }
 
         const lastUpdateTimestamp: number = Number(order.utcLastUpdateTimestamp);
 
         if (!this.lastUpdateDate || this.lastUpdateDate.timestamp !== lastUpdateTimestamp) {
-            this.lastUpdateDate = new MidaDate({ timestamp: lastUpdateTimestamp, });
+            this.lastUpdateDate = new MidaDate(lastUpdateTimestamp);
         }
 
         switch (descriptor.executionType) {
@@ -117,10 +121,8 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
                 }
 
-                (async (): Promise<void> => {
-                    this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
-                    this.onStatusChange(MidaBrokerOrderStatus.FILLED);
-                })();
+                this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
+                this.onStatusChange(MidaBrokerOrderStatus.FILLED);
 
                 break;
             }
@@ -140,13 +142,21 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
                 break;
             }
             case "ORDER_PARTIAL_FILL": {
-                (async (): Promise<void> => {
-                    this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
-                    this.onStatusChange(MidaBrokerOrderStatus.PARTIALLY_FILLED);
-                })();
+                this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
+                this.onStatusChange(MidaBrokerOrderStatus.PARTIALLY_FILLED);
 
                 break;
             }
+        }
+
+        // Process next event if there is any
+        const nextDescriptor: GenericObject | undefined = this.#updateQueue.shift();
+
+        if (nextDescriptor) {
+            this.#updatePromise = this.#onUpdate(nextDescriptor);
+        }
+        else {
+            this.#updatePromise = undefined;
         }
     }
 
@@ -160,7 +170,12 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
                 descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId &&
                 (orderId && orderId === this.id || descriptor.clientMsgId === this.#uuid)
             ) {
-                this.#onUpdate(descriptor);
+                if (this.#updatePromise) {
+                    this.#updateQueue.push(descriptor);
+                }
+                else {
+                    this.#updatePromise = this.#onUpdate(descriptor);
+                }
             }
         });
         // </execution>
