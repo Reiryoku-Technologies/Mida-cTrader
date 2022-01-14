@@ -8,6 +8,8 @@ import {
 import { CTraderBrokerOrderParameters } from "#brokers/ctrader/orders/CTraderBrokerOrderParameters";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
 import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
+import { CTraderBrokerPosition } from "#brokers/ctrader/positions/CTraderBrokerPosition";
+import { CTraderBrokerDeal } from "#brokers/ctrader/deals/CTraderBrokerDeal";
 
 export class CTraderBrokerOrder extends MidaBrokerOrder {
     readonly #uuid: string;
@@ -76,6 +78,10 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
     get #cTraderBrokerAccountId (): string {
         return this.#cTraderBrokerAccount.cTraderBrokerAccountId;
+    }
+
+    public setPosition (position: CTraderBrokerPosition): void {
+        this.position = position;
     }
 
     public override async cancel (): Promise<void> {

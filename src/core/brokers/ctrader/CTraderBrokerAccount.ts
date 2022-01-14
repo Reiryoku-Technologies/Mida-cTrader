@@ -267,16 +267,39 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24;
         const normalizedToTimestamp: number = toTimestamp ?? Date.now();
         const ordersPromises: Promise<MidaBrokerOrder>[] = [];
+        const plainOrders: GenericObject[] = await this.#getPlainOrders(normalizedFromTimestamp, normalizedToTimestamp);
 
-        await this.#preloadOrders(normalizedFromTimestamp, normalizedToTimestamp);
-
-        for (const plainOrder of [ ...this.#plainOrders.values(), ]) {
-            if (plainOrder.creationDate.timestamp >= normalizedFromTimestamp && plainOrder.creationDate.timestamp <= normalizedToTimestamp) {
+        for (const plainOrder of plainOrders) {
+            if (
+                Number(plainOrder.tradeData.openTimestamp) >= normalizedFromTimestamp
+                && Number(plainOrder.tradeData.openTimestamp) <= normalizedToTimestamp
+            ) {
                 ordersPromises.push(this.normalizePlainOrder(plainOrder));
             }
         }
 
         return Promise.all(ordersPromises);
+    }
+
+    async #getPlainOrders (fromTimestamp?: number, toTimestamp?: number): Promise<GenericObject[]> {
+        const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24;
+        const normalizedToTimestamp: number = toTimestamp ?? Date.now();
+        const plainOrders: GenericObject[] = [];
+
+        await this.#preloadOrders(normalizedFromTimestamp, normalizedToTimestamp);
+
+        console.log([ ...this.#plainOrders.values(), ]);
+
+        for (const plainOrder of [ ...this.#plainOrders.values(), ]) {
+            if (
+                Number(plainOrder.tradeData.openTimestamp) >= normalizedFromTimestamp
+                && Number(plainOrder.tradeData.openTimestamp) <= normalizedToTimestamp
+            ) {
+                plainOrders.push(plainOrder);
+            }
+        }
+
+        return plainOrders;
     }
 
     public override async getPendingOrders (): Promise<MidaBrokerOrder[]> {
@@ -377,7 +400,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         const lotUnits: number = Number(completePlainSymbol.lotSize) / 100;
         const volume: number = Number(plainOrder.tradeData.volume) / 100 / lotUnits;
         const purpose: MidaBrokerOrderPurpose = plainOrder.closingOrder === false ? MidaBrokerOrderPurpose.OPEN : MidaBrokerOrderPurpose.CLOSE;
-        const openDate: MidaDate = new MidaDate({ timestamp: Number(plainOrder.tradeData.openTimestamp), });
+        const openDate: MidaDate = new MidaDate(Number(plainOrder.tradeData.openTimestamp));
         const direction: MidaBrokerOrderDirection = tradeSide === "SELL" ? MidaBrokerOrderDirection.SELL : MidaBrokerOrderDirection.BUY;
         const limitPrice: number = Number(plainOrder.limitPrice);
         const stopPrice: number = Number(plainOrder.stopPrice);
@@ -430,7 +453,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             stopPrice: Number.isFinite(stopPrice) && stopPrice !== 0 ? stopPrice : undefined,
             status,
             creationDate: openDate,
-            lastUpdateDate: openDate,
+            lastUpdateDate: new MidaDate(Number(plainOrder.utcLastUpdateTimestamp)),
             timeInForce: MidaBrokerOrderTimeInForce.FILL_OR_KILL,
             isStopOut: plainOrder.isStopOut === true,
             uuid: plainOrder.clientOrderId || undefined,
@@ -442,49 +465,56 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return normalizedOrder;
     }
 
-    public async normalizePlainPosition (plainPosition: GenericObject): Promise<MidaBrokerPosition> {
-        const positionId: string = plainPosition.positionId.toString();
-        let normalizedPosition: CTraderBrokerPosition | undefined = this.#normalizedPositions.get(positionId);
+    public override async getPositionById (id: string): Promise<MidaBrokerPosition | undefined> {
+        let normalizedPosition: CTraderBrokerPosition | undefined = this.#normalizedPositions.get(id);
 
         if (normalizedPosition) {
             return normalizedPosition;
         }
 
-        const orders: MidaBrokerOrder[] = await this.getOrders();
-        const positionOrders: MidaBrokerOrder[] = [];
+        const plainOrders: GenericObject[] = await this.#getPlainOrders();
+        const positionOrdersPromises: Promise<CTraderBrokerOrder>[] = [];
 
-        for (const order of orders) {
-            if (order?.position?.id === positionId) {
-                positionOrders.push(order);
+        for (const plainOrder of plainOrders) {
+            if (plainOrder.positionId.toString() === id) {
+                positionOrdersPromises.push(this.normalizePlainOrder(plainOrder));
             }
         }
 
-        const stopLoss: number = Number(plainPosition.stopLoss);
-        const takeProfit: number = Number(plainPosition.takeProfit);
-        const trailingStopLoss: boolean = plainPosition.trailingStopLoss === true;
+        if (positionOrdersPromises.length === 0) {
+            return undefined;
+        }
 
         normalizedPosition = new CTraderBrokerPosition({
-            id: positionId,
-            orders: positionOrders,
-            protection: {
-                stopLoss: Number.isFinite(stopLoss) ? stopLoss : undefined,
-                takeProfit: Number.isFinite(takeProfit) ? takeProfit : undefined,
-                trailingStopLoss,
-            },
+            id,
+            orders: await Promise.all(positionOrdersPromises),
+            protection: {},
             connection: this.#connection,
         });
 
-        this.#normalizedPositions.set(normalizedPosition.id, normalizedPosition);
+        const normalizedOrders: CTraderBrokerOrder[] = normalizedPosition.orders as CTraderBrokerOrder[];
+
+        for (const normalizedOrder of normalizedOrders) {
+            if (!normalizedOrder.position) {
+                normalizedOrder.setPosition(normalizedPosition);
+            }
+        }
+
+        this.#normalizedPositions.set(id, normalizedPosition);
 
         return normalizedPosition;
     }
 
     public override async getSymbolBid (symbol: string): Promise<number> {
-        return (await this.getSymbolLastTick(symbol)).bid;
+        const { bid, } = await this.getSymbolLastTick(symbol);
+
+        return bid;
     }
 
     public override async getSymbolAsk (symbol: string): Promise<number> {
-        return (await this.getSymbolLastTick(symbol)).ask;
+        const { ask, } = await this.getSymbolLastTick(symbol);
+
+        return ask;
     }
 
     public override async placeOrder (directives: MidaBrokerOrderDirectives): Promise<CTraderBrokerOrder> {
@@ -599,8 +629,8 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
 
         const purpose: MidaBrokerDealPurpose = plainDeal.closePositionDetail ? MidaBrokerDealPurpose.CLOSE : MidaBrokerDealPurpose.OPEN;
-        const requestDate = new MidaDate({ timestamp: Number(plainDeal.createTimestamp), });
-        const executionDate = new MidaDate({ timestamp: Number(plainDeal.executionTimestamp), });
+        const requestDate = new MidaDate(Number(plainDeal.createTimestamp));
+        const executionDate = new MidaDate(Number(plainDeal.executionTimestamp));
         const rejectionDate: MidaDate | undefined = undefined;
         const executionPrice: number = Number(plainDeal.executionPrice);
         const grossProfit: number | undefined = ((): number | undefined => {
@@ -619,11 +649,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             return undefined;
         })();
 
+        const [ order, position, ] = await Promise.all([ this.getOrderById(orderId), this.getPositionById(positionId), ]);
+
         normalizedDeal = new CTraderBrokerDeal({
             id,
-            order: await this.getOrderById(orderId) as CTraderBrokerOrder,
-            // @ts-ignore
-            position: undefined,
+            order: order as CTraderBrokerOrder,
+            position: position as CTraderBrokerPosition,
             symbol,
             requestedVolume,
             filledVolume,
