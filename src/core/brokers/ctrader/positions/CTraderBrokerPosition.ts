@@ -1,9 +1,8 @@
 import {
     GenericObject,
-    MidaBrokerOrder,
     MidaBrokerPosition,
     MidaBrokerPositionProtection,
-    MidaBrokerPositionStatus,
+    MidaBrokerPositionStatus, MidaEmitter, MidaEvent,
 } from "@reiryoku/mida";
 import { CTraderBrokerPositionParameters } from "#brokers/ctrader/positions/CTraderBrokerPositionParameters";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
@@ -11,7 +10,6 @@ import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
 
 export class CTraderBrokerPosition extends MidaBrokerPosition {
     readonly #connection: CTraderConnection;
-    readonly #dispatchedOrders: Map<string, boolean>;
     readonly #updateQueue: GenericObject[];
     #updatePromise: Promise<void> | undefined;
 
@@ -28,7 +26,6 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         });
 
         this.#connection = connection;
-        this.#dispatchedOrders = new Map();
         this.#updateQueue = [];
         this.#updatePromise = undefined;
 
@@ -155,12 +152,10 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             case "ORDER_REJECTED":
             case "ORDER_PARTIAL_FILL": */ {
                 const plainOrder: GenericObject = descriptor.order;
-                const orderId: string = plainOrder?.orderId?.toString();
                 const positionId: string = plainOrder?.positionId?.toString();
 
-                if (positionId === this.id && orderId && !this.#dispatchedOrders.has(orderId)) {
-                    this.#dispatchedOrders.set(orderId, true);
-                    this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder).then((order: MidaBrokerOrder): void => this.onOrderFill(order));
+                if (positionId === this.id) {
+                    this.onOrderFill(await this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder));
                 }
 
                 break;

@@ -8,8 +8,6 @@ import {
 import { CTraderBrokerOrderParameters } from "#brokers/ctrader/orders/CTraderBrokerOrderParameters";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
 import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
-import { CTraderBrokerPosition } from "#brokers/ctrader/positions/CTraderBrokerPosition";
-import { CTraderBrokerDeal } from "#brokers/ctrader/deals/CTraderBrokerDeal";
 
 export class CTraderBrokerOrder extends MidaBrokerOrder {
     readonly #uuid: string;
@@ -78,10 +76,6 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
     get #cTraderBrokerAccountId (): string {
         return this.#cTraderBrokerAccount.cTraderBrokerAccountId;
-    }
-
-    public setPosition (position: CTraderBrokerPosition): void {
-        this.position = position;
     }
 
     public override async cancel (): Promise<void> {
@@ -168,7 +162,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
     // eslint-disable-next-line max-lines-per-function
     #configureListeners (): void {
-        // <execution>
+        // <order-execution>
         this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
@@ -184,9 +178,9 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
                 }
             }
         });
-        // </execution>
+        // </order-execution>
 
-        // <error>
+        // <request-validation-errors>
         this.#connection.on("ProtoOAOrderErrorEvent", (descriptor: GenericObject): void => {
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
@@ -234,6 +228,6 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
             this.onStatusChange(MidaBrokerOrderStatus.REJECTED);
         });
-        // </error>
+        // </request-validation-errors>
     }
 }
