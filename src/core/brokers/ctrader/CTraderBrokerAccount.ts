@@ -15,7 +15,7 @@ import {
     MidaBrokerOrderTimeInForce,
     MidaBrokerPosition,
     MidaBrokerPositionDirection,
-    MidaDate,
+    MidaDate, MidaEventListener,
     MidaSymbol,
     MidaSymbolCategory,
     MidaSymbolPeriod,
@@ -31,7 +31,6 @@ import { CTraderBrokerDeal } from "#brokers/ctrader/deals/CTraderBrokerDeal";
 import { ORDER_SIGNATURE } from "!/src/core/CTraderPlugin";
 import { CTraderBrokerPosition } from "#brokers/ctrader/positions/CTraderBrokerPosition";
 
-// @ts-ignore
 export class CTraderBrokerAccount extends MidaBrokerAccount {
     readonly #connection: CTraderConnection;
     readonly #cTraderBrokerAccountId: string;
@@ -384,6 +383,10 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return this.normalizePlainDeal(plainDeal);
     }
 
+    public override async getPositions (fromTimestamp: number, toTimestamp: number): Promise<MidaBrokerPosition[]> {
+        return [];
+    }
+
     public override async getOpenPositions (): Promise<MidaBrokerPosition[]> {
         return [];
     }
@@ -481,6 +484,10 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public async getDealsByOrderId (id: string): Promise<MidaBrokerDeal[]> {
+        const timestamp: number = Date.now();
+
+        await this.#preloadDeals(timestamp - 604800000, timestamp);
+
         const plainDeals: GenericObject[] = this.#getDealsDescriptorsByOrderId(id);
         const orderDealsPromises: Promise<CTraderBrokerDeal>[] = [];
 
@@ -623,9 +630,40 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             requestDirectives.positionId = positionId;
         }
 
+        // ***
+        let resolverIsLocked: boolean = false;
+        const listeners: { [eventType: string]: MidaEventListener } = directives.listeners ?? {};
+        const resolverEvents: string[] = directives.resolverEvents ?? [
+            "reject",
+            "pending",
+            "cancel",
+            "expire",
+            "fill",
+        ];
+        const resolver: Promise<CTraderBrokerOrder> = new Promise((resolve: any) => {
+            if (resolverEvents.length === 0) {
+                resolve(order);
+            }
+
+            for (const eventType of resolverEvents) {
+                order.on(eventType, (): void => {
+                    if (!resolverIsLocked) {
+                        resolverIsLocked = true;
+
+                        resolve(order);
+                    }
+                });
+            }
+        });
+
+        for (const eventType of Object.keys(listeners)) {
+            order.on(eventType, listeners[eventType]);
+        }
+        // ***
+
         await this.#sendCommand("ProtoOANewOrderReq", requestDirectives, uuid);
 
-        return order;
+        return resolver;
     }
 
     /** Used to convert a cTrader server deal to a CTraderBrokerDeal. */
@@ -1032,6 +1070,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         let fromTimestamp: number = toTimestamp - W1;
         let totalTimestamp: number = W1;
 
+        // Since there is no interface to request an order by id, search through the orders of the past 3 weeks
         while (totalTimestamp / W1 <= 3) {
             const plainOrders: GenericObject[] = (await this.#sendCommand("ProtoOAOrderListReq", {
                 fromTimestamp,
@@ -1072,6 +1111,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         let fromTimestamp: number = toTimestamp - W1;
         let totalTimestamp: number = W1;
 
+        // Since there is no interface to request a deal by id, search through the deals of the past 3 weeks
         while (totalTimestamp / W1 <= 3) {
             const plainDeals: GenericObject[] = (await this.#sendCommand("ProtoOADealListReq", {
                 fromTimestamp,
@@ -1140,6 +1180,9 @@ export function normalizeTimeframe (timeframe: number): string {
         }
         case 300: {
             return "M5";
+        }
+        case 86400: {
+            return "D1";
         }
         default: {
             throw new Error();
