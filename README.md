@@ -20,4 +20,4 @@ const myAccount = await MidaBroker.login("cTrader", {
 ```
 
 ## Documentation
-For the complete usage documentation refer to [Mida](https://github.com/Reiryoku-Technologies/Mida).
+For the complete documentation refer to [Mida](https://github.com/Reiryoku-Technologies/Mida).
