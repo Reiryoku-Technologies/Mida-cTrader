@@ -2,7 +2,7 @@ import {
     GenericObject,
     MidaBrokerPosition,
     MidaBrokerPositionProtection,
-    MidaBrokerPositionStatus, MidaEmitter, MidaEvent,
+    MidaBrokerPositionStatus,
 } from "@reiryoku/mida";
 import { CTraderBrokerPositionParameters } from "#brokers/ctrader/positions/CTraderBrokerPositionParameters";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
@@ -10,8 +10,8 @@ import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
 
 export class CTraderBrokerPosition extends MidaBrokerPosition {
     readonly #connection: CTraderConnection;
-    readonly #updateQueue: GenericObject[];
-    #updatePromise: Promise<void> | undefined;
+    readonly #updateEventQueue: GenericObject[];
+    #updateEventIsLocked: boolean;
 
     public constructor ({
         id,
@@ -26,13 +26,10 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         });
 
         this.#connection = connection;
-        this.#updateQueue = [];
-        this.#updatePromise = undefined;
+        this.#updateEventQueue = [];
+        this.#updateEventIsLocked = false;
 
-        // Listen events only if the position is not in a final state
-        if (status !== MidaBrokerPositionStatus.CLOSED) {
-            this.#configureListeners();
-        }
+        this.#configureListeners();
     }
 
     get #cTraderBrokerAccount (): CTraderBrokerAccount {
@@ -119,9 +116,9 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         await this.#connection.sendCommand("ProtoOAAmendPositionSLTPReq", {
             ctidTraderAccountId: this.#cTraderBrokerAccountId,
             positionId: this.id,
-            stopLoss: protection.stopLoss,
-            takeProfit: protection.takeProfit,
-            trailingStopLoss: protection.trailingStopLoss,
+            stopLoss: protection.stopLoss ?? this.protection.stopLoss,
+            takeProfit: protection.takeProfit ?? this.protection.takeProfit,
+            trailingStopLoss: protection.trailingStopLoss ?? this.protection.trailingStopLoss === true,
         });
     }
 
@@ -138,6 +135,14 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
     }
 
     async #onUpdate (descriptor: GenericObject): Promise<void> {
+        if (this.#updateEventIsLocked) {
+            this.#updateEventQueue.push(descriptor);
+
+            return;
+        }
+
+        this.#updateEventIsLocked = true;
+
         switch (descriptor.executionType) {
             case "SWAP": {
                 this.onSwap(NaN);
@@ -163,25 +168,18 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         }
 
         // Process next event if there is any
-        const nextDescriptor: GenericObject | undefined = this.#updateQueue.shift();
+        const nextDescriptor: GenericObject | undefined = this.#updateEventQueue.shift();
+        this.#updateEventIsLocked = false;
 
         if (nextDescriptor) {
-            this.#updatePromise = this.#onUpdate(nextDescriptor);
-        }
-        else {
-            this.#updatePromise = undefined;
+            this.#onUpdate(nextDescriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
         }
     }
 
     #configureListeners (): void {
         this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
-                if (this.#updatePromise) {
-                    this.#updateQueue.push(descriptor);
-                }
-                else {
-                    this.#updatePromise = this.#onUpdate(descriptor);
-                }
+                this.#onUpdate(descriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
             }
         });
     }

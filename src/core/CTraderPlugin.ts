@@ -1,16 +1,20 @@
 import {
     MidaPlugin,
     MidaPluginActions,
-    MidaPluginParameters,
 } from "@reiryoku/mida";
-import { CTraderPluginOptions } from "#CTraderPluginOptions";
+import { CTraderPluginOptions } from "!/src/core/CTraderPluginOptions";
 import { CTraderBroker } from "#brokers/ctrader/CTraderBroker";
 
 export const ORDER_SIGNATURE: string = "Mida/cTrader";
 
 export class CTraderPlugin extends MidaPlugin {
-    public constructor (parameters: MidaPluginParameters) {
-        super(parameters);
+    public constructor () {
+        super({
+            id: "mida-ctrader",
+            name: "cTrader",
+            version: "1.0.0",
+            description: "A Mida plugin to operate with cTrader.",
+        });
     }
 
     public override install (actions: MidaPluginActions, options: CTraderPluginOptions = {}): void {

@@ -15,7 +15,8 @@ import {
     MidaBrokerOrderTimeInForce,
     MidaBrokerPosition,
     MidaBrokerPositionDirection,
-    MidaDate, MidaEventListener,
+    MidaDate,
+    MidaEventListener,
     MidaSymbol,
     MidaSymbolCategory,
     MidaSymbolPeriod,
@@ -289,8 +290,6 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         await this.#preloadOrders(normalizedFromTimestamp, normalizedToTimestamp);
 
-        console.log([ ...this.#plainOrders.values(), ]);
-
         for (const plainOrder of [ ...this.#plainOrders.values(), ]) {
             if (
                 Number(plainOrder.tradeData.openTimestamp) >= normalizedFromTimestamp
@@ -544,7 +543,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return (await this.getSymbolLastTick(symbol)).ask;
     }
 
-    // eslint-disable-next-line max-lines-per-function
+    // eslint-disable-next-line max-lines-per-function, complexity
     public override async placeOrder (directives: MidaBrokerOrderDirectives): Promise<CTraderBrokerOrder> {
         const uuid: string = MidaUtilities.generateUuid();
         const positionId: string | undefined = directives.positionId;
@@ -587,7 +586,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             status: MidaBrokerOrderStatus.REQUESTED,
             creationDate: undefined,
             lastUpdateDate: undefined,
-            timeInForce: MidaBrokerOrderTimeInForce.FILL_OR_KILL,
+            timeInForce: MidaBrokerOrderTimeInForce.IMMEDIATE_OR_CANCEL,
             deals: [],
             position: undefined,
             rejectionType: undefined,
@@ -595,6 +594,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             uuid,
             connection: this.#connection,
         });
+
         const plainSymbol: GenericObject = this.#symbols.get(symbol) as GenericObject;
         const completePlainSymbol: GenericObject = await this.#getCompletePlainSymbol(symbol);
         const lotUnits: number = Number(completePlainSymbol.lotSize) / 100;
@@ -607,6 +607,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         };
 
         if (!existingPosition && directives.purpose === MidaBrokerOrderPurpose.OPEN) {
+            const {
+                stopLoss,
+                takeProfit,
+                trailingStopLoss,
+            } = directives.protection ?? {};
+
             if (Number.isFinite(limitPrice)) {
                 requestDirectives.orderType = "LIMIT";
                 requestDirectives.limitPrice = limitPrice;
@@ -617,6 +623,18 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             }
             else {
                 requestDirectives.orderType = "MARKET";
+            }
+
+            if (Number.isFinite(stopLoss)) {
+                requestDirectives.stopLoss = stopLoss;
+            }
+
+            if (Number.isFinite(takeProfit)) {
+                requestDirectives.takeProfit = takeProfit;
+            }
+
+            if (trailingStopLoss === true) {
+                requestDirectives.trailingStopLoss = true;
             }
 
             requestDirectives.tradeSide = directives.direction === MidaBrokerOrderDirection.BUY ? "BUY" : "SELL";
@@ -659,6 +677,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         for (const eventType of Object.keys(listeners)) {
             order.on(eventType, listeners[eventType]);
         }
+
+        order.on("*", () => {
+            if (order.id) {
+                this.#normalizedOrders.set(order.id, order);
+            }
+        });
         // ***
 
         await this.#sendCommand("ProtoOANewOrderReq", requestDirectives, uuid);
@@ -669,13 +693,13 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     /** Used to convert a cTrader server deal to a CTraderBrokerDeal. */
     // eslint-disable-next-line max-lines-per-function
     public async normalizePlainDeal (plainDeal: GenericObject): Promise<CTraderBrokerDeal> {
-        let normalizedDeal: CTraderBrokerDeal | undefined = this.#normalizedDeals.get(plainDeal.dealId);
+        const id = plainDeal.dealId.toString();
+        let normalizedDeal: CTraderBrokerDeal | undefined = this.#normalizedDeals.get(id);
 
         if (normalizedDeal) {
             return normalizedDeal;
         }
 
-        const id = plainDeal.dealId.toString();
         const orderId = plainDeal.orderId.toString();
         const positionId = plainDeal.positionId.toString();
         const symbol: string = this.#getPlainSymbolById(plainDeal.symbolId.toString())?.symbolName;
@@ -749,9 +773,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         const executionDate = new MidaDate(Number(plainDeal.executionTimestamp));
         const rejectionDate: MidaDate | undefined = undefined;
         const executionPrice: number = Number(plainDeal.executionPrice);
-        const grossProfit: number = Number(plainDeal.closePositionDetail.grossProfit) / 100;
+        const grossProfit: number = Number(plainDeal?.closePositionDetail?.grossProfit) / 100;
         const commission: number = Number(plainDeal.commission) / 100;
-        const swap: number = Number(plainDeal.closePositionDetail.swap) / 100;
+        const swap: number = Number(plainDeal?.closePositionDetail?.swap) / 100;
 
         normalizedDeal = new CTraderBrokerDeal({
             id,
@@ -770,7 +794,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             closedDeals: [], // TODO: TODO
             executionPrice: Number.isFinite(executionPrice) ? executionPrice : undefined,
             grossProfit: Number.isFinite(grossProfit) ? grossProfit : undefined,
-            commission: Number.isFinite(commission) ? grossProfit : undefined,
+            commission: Number.isFinite(commission) ? commission : undefined,
             swap: Number.isFinite(swap) ? swap : undefined,
             rejectionType,
         });

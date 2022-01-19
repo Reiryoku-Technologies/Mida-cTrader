@@ -12,8 +12,8 @@ import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
 export class CTraderBrokerOrder extends MidaBrokerOrder {
     readonly #uuid: string;
     readonly #connection: CTraderConnection;
-    readonly #updateQueue: GenericObject[];
-    #updateEventIsBusy: boolean;
+    readonly #updateEventQueue: GenericObject[];
+    #updateEventIsLocked: boolean;
 
     public constructor ({
         id,
@@ -56,8 +56,8 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
         this.#uuid = uuid;
         this.#connection = connection;
-        this.#updateQueue = [];
-        this.#updateEventIsBusy = false;
+        this.#updateEventQueue = [];
+        this.#updateEventIsLocked = false;
 
         // Listen events only if the order is not in a final state
         if (
@@ -91,18 +91,18 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
     // eslint-disable-next-line max-lines-per-function
     async #onUpdate (descriptor: GenericObject): Promise<void> {
-        if (this.#updateEventIsBusy) {
-            this.#updateQueue.push(descriptor);
+        if (this.#updateEventIsLocked) {
+            this.#updateEventQueue.push(descriptor);
 
             return;
         }
 
-        this.#updateEventIsBusy = true;
+        this.#updateEventIsLocked = true;
 
         const order: GenericObject = descriptor.order;
-        const orderId: string = order.orderId;
+        const orderId: string = order.orderId.toString();
         const orderCreationTimestamp: number = Number(order.tradeData.openTimestamp);
-        const positionId: string = order.positionId;
+        const positionId: string = order.positionId.toString();
 
         if (!this.id && orderId) {
             this.id = orderId;
@@ -130,10 +130,10 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             }
             case "ORDER_FILLED": {
                 if (!this.position && positionId) {
-
+                    this.position = await this.brokerAccount.getPositionById(positionId);
                 }
 
-                // this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
+                this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
                 this.onStatusChange(MidaBrokerOrderStatus.FILLED);
 
                 break;
@@ -154,7 +154,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
                 break;
             }
             case "ORDER_PARTIAL_FILL": {
-                // this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
+                this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
                 this.onStatusChange(MidaBrokerOrderStatus.PARTIALLY_FILLED);
 
                 break;
@@ -162,11 +162,11 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
         }
 
         // Process next event if there is any
-        const nextDescriptor: GenericObject | undefined = this.#updateQueue.shift();
-        this.#updateEventIsBusy = false;
+        const nextDescriptor: GenericObject | undefined = this.#updateEventQueue.shift();
+        this.#updateEventIsLocked = false;
 
         if (nextDescriptor) {
-            this.#onUpdate(nextDescriptor).then(() => undefined); // then() is used just to avoid editors warning
+            this.#onUpdate(nextDescriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
         }
     }
 
@@ -218,7 +218,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
                 descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId &&
                 (orderId && orderId === this.id || descriptor.clientMsgId === this.#uuid)
             ) {
-                this.#onUpdate(descriptor).then(() => undefined); // then() is used just to avoid editors warning
+                this.#onUpdate(descriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
             }
         });
         // </order-execution>
