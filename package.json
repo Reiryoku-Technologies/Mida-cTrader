@@ -37,7 +37,6 @@
     },
     "devDependencies": {
         "@reiryoku/eslint-config-reiryoku": "^1.0.0",
-        "@reiryoku/mida": "^3.0.0",
         "@types/jest": "^26.0.20",
         "@types/node": "^12.7.2",
         "@typescript-eslint/eslint-plugin": "^4.26.0",
@@ -50,6 +49,6 @@
         "typescript-transform-paths": "^2.2.4"
     },
     "peerDependencies": {
-        "@reiryoku/mida": "^2.0.0"
+        "@reiryoku/mida": "^3.0.0"
     }
 }
