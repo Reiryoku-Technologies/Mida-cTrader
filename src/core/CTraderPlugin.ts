@@ -12,7 +12,7 @@ export class CTraderPlugin extends MidaPlugin {
         super({
             id: "mida-ctrader",
             name: "cTrader",
-            version: "1.0.0",
+            version: "1.0.1",
             description: "A Mida plugin to operate with cTrader.",
         });
     }
