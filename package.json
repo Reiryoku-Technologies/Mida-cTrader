@@ -1,7 +1,7 @@
 {
     "name": "@reiryoku/mida-ctrader",
     "version": "1.1.0",
-    "description": "A Mida plugin to operate with cTrader.",
+    "description": "A Mida plugin to operate with cTrader",
     "license": "MIT",
     "homepage": "https://github.com/Reiryoku-Technologies/Mida-cTrader",
     "bugs": {
@@ -33,9 +33,10 @@
         "tests"
     ],
     "dependencies": {
-        "@reiryoku/ctrader-layer": "^2.1.0"
+        "@reiryoku/ctrader-layer": "^2.2.0"
     },
     "devDependencies": {
+        "@reiryoku/mida": "^4.0.0",
         "@reiryoku/eslint-config-reiryoku": "^1.0.0",
         "@types/jest": "^26.0.20",
         "@types/node": "^12.7.2",
@@ -49,6 +50,6 @@
         "typescript-transform-paths": "^2.2.4"
     },
     "peerDependencies": {
-        "@reiryoku/mida": "^3.0.0"
+        "@reiryoku/mida": "^4.0.0"
     }
 }

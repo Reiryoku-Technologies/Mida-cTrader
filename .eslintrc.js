@@ -6,4 +6,8 @@ module.exports = {
     parser: "@typescript-eslint/parser",
     plugins: [ "@typescript-eslint", ],
     extends: [ "@reiryoku/eslint-config-reiryoku", ],
+    rules: {
+        "no-extra-parens": "off",
+        "@typescript-eslint/no-extra-parens": "off",
+    },
 };

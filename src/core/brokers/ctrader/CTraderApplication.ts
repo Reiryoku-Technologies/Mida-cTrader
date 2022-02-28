@@ -109,7 +109,7 @@ export class CTraderApplication {
         return new CTraderBrokerAccount({
             id: account.traderLogin.toString(),
             broker: CTraderPlugin.broker,
-            creationDate: new MidaDate({ timestamp: Number(accountDescriptor.registrationTimestamp), }),
+            creationDate: new MidaDate(Number(accountDescriptor.registrationTimestamp)),
             ownerName: "",
             depositCurrencyIso: depositAsset.displayName.toUpperCase(),
             depositCurrencyDigits: Number(accountDescriptor.moneyDigits),
