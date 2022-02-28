@@ -390,7 +390,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async getOpenPositions (): Promise<MidaBrokerPosition[]> {
-        return [];
+        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
+        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
+
+        return Promise.all(plainOpenPositions.map(
+            (plainPosition: GenericObject) => this.getPositionById(plainPosition.positionId))
+        ) as Promise<MidaBrokerPosition[]>;
     }
 
     // eslint-disable-next-line max-lines-per-function
@@ -653,6 +658,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
         else {
             requestDirectives.positionId = positionId;
+            requestDirectives.orderType = "MARKET";
         }
 
         const resolverEvents: string[] = directives.resolverEvents ?? [
@@ -939,7 +945,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     // eslint-disable-next-line max-lines-per-function
     #configureListeners (): void {
         // <execution>
-        this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
+        this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
                 this.#onExecution(descriptor);
             }
@@ -947,7 +953,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         // </execution>
 
         // <ticks>
-        this.#connection.on("ProtoOASpotEvent", (descriptor: GenericObject): void => {
+        this.#connection.on("ProtoOASpotEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
                 this.#onTick(descriptor);
             }
@@ -955,7 +961,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         // </ticks>
 
         // <symbol-update>
-        this.#connection.on("ProtoOASymbolChangedEvent", (descriptor: GenericObject): void => {
+        this.#connection.on("ProtoOASymbolChangedEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() !== this.#cTraderBrokerAccountId) {
                 return;
             }
@@ -969,7 +975,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         // </symbol-update>
 
         // <position-update>
-        this.#connection.on("ProtoOAMarginChangedEvent", (descriptor: GenericObject): void => {
+        this.#connection.on("ProtoOAMarginChangedEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() !== this.#cTraderBrokerAccountId) {
                 return;
             }

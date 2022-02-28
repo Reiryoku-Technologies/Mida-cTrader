@@ -177,7 +177,7 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
     }
 
     #configureListeners (): void {
-        this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
+        this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
                 this.#onUpdate(descriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
             }

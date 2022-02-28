@@ -211,7 +211,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
     #configureListeners (): void {
         // <order-execution>
-        this.#connection.on("ProtoOAExecutionEvent", (descriptor: GenericObject): void => {
+        this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
             if (
@@ -224,7 +224,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
         // </order-execution>
 
         // <request-validation-errors>
-        this.#connection.on("ProtoOAOrderErrorEvent", (descriptor: GenericObject): void => {
+        this.#connection.on("ProtoOAOrderErrorEvent", ({ descriptor, }): void => {
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
             if (
