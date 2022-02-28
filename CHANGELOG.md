@@ -1,3 +1,9 @@
+### Features
+* Correctly implement the broker account `getOpenPositions` method, return the actual open positions and no longer empty array regardless of open positions ([#3](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/3))
+* Update Mida dependency and API usage to 4.0.0 ([#3](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/3))
+* Update cTrader Layer dependency and API usage to 2.2.0 ([#3](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/3))
+* Optimize cache for assets and symbols ([#3](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/3))
+
 1.1.0 - 27-01-2022
 ===================
 ### Features
