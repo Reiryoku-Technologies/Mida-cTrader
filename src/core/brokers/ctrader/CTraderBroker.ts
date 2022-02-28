@@ -18,8 +18,8 @@ export class CTraderBroker extends MidaBroker {
         accessToken,
         cTraderBrokerAccountId,
     }: CTraderBrokerLoginParameters): Promise<CTraderBrokerAccount> {
-        const cTraderApp: CTraderApplication = await CTraderApplication.create({ clientId, clientSecret, });
-        const brokerAccount: CTraderBrokerAccount = await cTraderApp.loginBrokerAccount(accessToken, cTraderBrokerAccountId);
+        const cTraderApplication: CTraderApplication = await CTraderApplication.create({ clientId, clientSecret, });
+        const brokerAccount: CTraderBrokerAccount = await cTraderApplication.loginBrokerAccount(accessToken, cTraderBrokerAccountId);
 
         await brokerAccount.preloadAssetsAndSymbols();
 
