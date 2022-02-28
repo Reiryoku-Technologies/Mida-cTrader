@@ -1,4 +1,4 @@
-1.2.0 - 28-01-2022
+1.2.0 - 28-02-2022
 ===================
 ### Features
 * Correctly implement the broker account `getOpenPositions` method, return the actual open positions and no longer empty array regardless of open positions ([#3](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/3))
