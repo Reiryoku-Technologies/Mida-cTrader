@@ -530,7 +530,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         normalizedPosition = new CTraderBrokerPosition({
             id,
             orders,
-            protection: {},
+            protection: {}, // TODO: if position is open, assign its protection
             connection: this.#connection,
         });
 
