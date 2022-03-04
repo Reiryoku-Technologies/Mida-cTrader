@@ -14,7 +14,7 @@ import {
     MidaBrokerOrderStatus,
     MidaBrokerOrderTimeInForce,
     MidaBrokerPosition,
-    MidaBrokerPositionDirection,
+    MidaBrokerPositionDirection, MidaBrokerPositionProtection,
     MidaDate,
     MidaEventListener,
     MidaSymbol,
@@ -48,6 +48,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     readonly #plainDeals: Map<string, GenericObject>;
     readonly #normalizedDeals: Map<string, CTraderBrokerDeal>;
     readonly #plainPositions: Map<string, GenericObject>;
+    readonly #plainOpenPositions: Map<string, GenericObject>;
     readonly #normalizedPositions: Map<string, CTraderBrokerPosition>;
     readonly #lastTicks: Map<string, MidaSymbolTick>;
     readonly #internalTickListeners: Map<string, Function>;
@@ -95,6 +96,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         this.#plainDeals = new Map();
         this.#normalizedDeals = new Map();
         this.#plainPositions = new Map();
+        this.#plainOpenPositions = new Map();
         this.#normalizedPositions = new Map();
         this.#lastTicks = new Map();
         this.#internalTickListeners = new Map();
@@ -110,15 +112,6 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
     public get brokerName (): string {
         return this.#brokerName;
-    }
-
-    public async preloadOpenPositions (): Promise<void> {
-        const accountOperativityDescriptor: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
-        const plainOpenPositions: GenericObject[] = accountOperativityDescriptor.position;
-
-        for (const plainOpenPosition of plainOpenPositions) {
-            this.#plainPositions.set(plainOpenPosition.positionId, plainOpenPosition);
-        }
     }
 
     public async preloadAssetsAndSymbols (): Promise<void> {
@@ -287,7 +280,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     async #getPlainOrders (fromTimestamp?: number, toTimestamp?: number): Promise<GenericObject[]> {
-        const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24;
+        const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24 * 7;
         const normalizedToTimestamp: number = toTimestamp ?? Date.now();
         const plainOrders: GenericObject[] = [];
 
@@ -390,8 +383,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async getOpenPositions (): Promise<MidaBrokerPosition[]> {
-        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
-        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
+        await this.#preloadOpenPositions();
+
+        const plainOpenPositions: GenericObject[] = [ ...this.#plainOpenPositions.values(), ];
 
         return Promise.all(plainOpenPositions.map(
             (plainPosition: GenericObject) => this.getPositionById(plainPosition.positionId))
@@ -512,6 +506,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             return normalizedPosition;
         }
 
+        const plainPosition: GenericObject | undefined = this.#plainPositions.get(id) ?? this.#plainOpenPositions.get(id);
         const plainOrders: GenericObject[] = await this.#getPlainOrders();
         const positionOrdersPromises: Promise<CTraderBrokerOrder>[] = [];
 
@@ -530,7 +525,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         normalizedPosition = new CTraderBrokerPosition({
             id,
             orders,
-            protection: {}, // TODO: if position is open, assign its protection
+            protection: plainPosition ? this.normalizePlainPositionProtection(plainPosition) : {},
             connection: this.#connection,
         });
 
@@ -832,8 +827,39 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return this.#normalizedAssets.get(plainAsset.name);
     }
 
+    // eslint-disable-next-line id-length
+    public normalizePlainPositionProtection (plainPosition: GenericObject): MidaBrokerPositionProtection {
+        const takeProfit: number = Number(plainPosition.takeProfit);
+        const stopLoss: number = Number(plainPosition.stopLoss);
+        const trailingStopLoss: boolean = plainPosition.trailingStopLoss;
+        const protection: MidaBrokerPositionProtection = {};
+
+        if (Number.isFinite(takeProfit) && takeProfit !== 0) {
+            protection.takeProfit = takeProfit;
+        }
+
+        if (Number.isFinite(stopLoss) && stopLoss !== 0) {
+            protection.stopLoss = stopLoss;
+        }
+
+        protection.trailingStopLoss = trailingStopLoss;
+
+        return protection;
+    }
+
     async #getAccountDescriptor (): Promise<GenericObject> {
         return (await this.#sendCommand("ProtoOATraderReq")).trader;
+    }
+
+    async #preloadOpenPositions (): Promise<void> {
+        const accountOperativityDescriptor: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
+        const plainOpenPositions: GenericObject[] = accountOperativityDescriptor.position;
+
+        this.#plainOpenPositions.clear();
+
+        for (const plainOpenPosition of plainOpenPositions) {
+            this.#plainOpenPositions.set(plainOpenPosition.positionId, plainOpenPosition);
+        }
     }
 
     async #preloadAssets (): Promise<void> {
@@ -1023,7 +1049,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     #getDealsDescriptorsByOrderId (id: string): GenericObject[] {
-        return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal.orderId.toString() === id);
+        return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal?.orderId?.toString() === id);
     }
 
     #getDealsDescriptorsByPositionId (id: string): GenericObject[] {

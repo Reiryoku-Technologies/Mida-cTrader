@@ -177,11 +177,7 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
                     break;
                 }
                 case "ORDER_REPLACED": {
-                    this.onProtectionChange({
-                        stopLoss: Number(plainOrder.position.stopLoss),
-                        takeProfit: Number(plainOrder.position.takeProfit),
-                        trailingStopLoss: plainOrder.position.trailingStopLoss,
-                    });
+                    this.onProtectionChange(this.#cTraderBrokerAccount.normalizePlainPositionProtection(descriptor.position));
 
                     break;
                 }
