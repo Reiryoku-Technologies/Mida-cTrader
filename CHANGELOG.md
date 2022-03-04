@@ -1,3 +1,7 @@
+### Bug fixes
+* Correctly update position orders when a new order impacting the existing position is created [#8](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/8) | https://github.com/Reiryoku-Technologies/Mida-cTrader/issues/7
+* Use the correct format when sending a request to update the protection of a position [#8](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/8)
+
 1.2.0 - 28-02-2022
 ===================
 ### Features
