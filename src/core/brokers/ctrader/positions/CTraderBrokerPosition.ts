@@ -1,5 +1,5 @@
 import {
-    GenericObject, MidaBrokerOrder,
+    GenericObject,
     MidaBrokerPosition,
     MidaBrokerPositionProtection,
     MidaBrokerPositionStatus,
