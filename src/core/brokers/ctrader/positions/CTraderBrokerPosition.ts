@@ -31,7 +31,10 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         this.#updateEventIsLocked = false;
         this.#updateEventUuid = undefined;
 
-        this.#configureListeners();
+        // Listen events only if the position is not in a final state
+        if (this.status !== MidaBrokerPositionStatus.CLOSED) {
+            this.#configureListeners();
+        }
     }
 
     get #cTraderBrokerAccount (): CTraderBrokerAccount {
