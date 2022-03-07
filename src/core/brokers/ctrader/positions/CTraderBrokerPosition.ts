@@ -12,6 +12,7 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
     readonly #connection: CTraderConnection;
     readonly #updateEventQueue: GenericObject[];
     #updateEventIsLocked: boolean;
+    #updateEventUuid?: string;
 
     public constructor ({
         id,
@@ -28,8 +29,12 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         this.#connection = connection;
         this.#updateEventQueue = [];
         this.#updateEventIsLocked = false;
+        this.#updateEventUuid = undefined;
 
-        this.#configureListeners();
+        // Listen events only if the position is not in a final state
+        if (this.status !== MidaBrokerPositionStatus.CLOSED) {
+            this.#configureListeners();
+        }
     }
 
     get #cTraderBrokerAccount (): CTraderBrokerAccount {
@@ -113,13 +118,27 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
     }
 
     public override async modifyProtection (protection: MidaBrokerPositionProtection): Promise<void> {
-        await this.#connection.sendCommand("ProtoOAAmendPositionSLTPReq", {
+        const requestDescriptor: GenericObject = {
             ctidTraderAccountId: this.#cTraderBrokerAccountId,
             positionId: this.id,
-            stopLoss: protection.stopLoss ?? this.protection.stopLoss,
-            takeProfit: protection.takeProfit ?? this.protection.takeProfit,
-            trailingStopLoss: protection.trailingStopLoss ?? this.protection.trailingStopLoss === true,
-        });
+            stopLoss: this.stopLoss,
+            takeProfit: this.takeProfit,
+            trailingStopLoss: this.trailingStopLoss,
+        };
+
+        if ("stopLoss" in protection) {
+            requestDescriptor.stopLoss = protection.stopLoss;
+        }
+
+        if ("takeProfit" in protection) {
+            requestDescriptor.takeProfit = protection.takeProfit;
+        }
+
+        if ("trailingStopLoss" in protection) {
+            requestDescriptor.trailingStopLoss = protection.trailingStopLoss;
+        }
+
+        this.#connection.sendCommand("ProtoOAAmendPositionSLTPReq", requestDescriptor);
     }
 
     public override async setStopLoss (stopLoss: number): Promise<void> {
@@ -143,27 +162,33 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
 
         this.#updateEventIsLocked = true;
 
-        switch (descriptor.executionType) {
-            case "SWAP": {
-                this.onSwap(NaN);
+        const plainOrder: GenericObject = descriptor.order;
+        const positionId: string = plainOrder?.positionId?.toString();
 
-                break;
+        if (positionId && positionId === this.id) {
+            // Used to associate the order to the actual position
+            if (!this.#hasOrder(plainOrder.orderId.toString())) {
+                this.onOrder(await this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder));
             }
 
-            /* case "ORDER_ACCEPTED": */
-            case "ORDER_FILLED":
-            /* case "ORDER_CANCELLED":
-            case "ORDER_EXPIRED":
-            case "ORDER_REJECTED":
-            case "ORDER_PARTIAL_FILL": */ {
-                const plainOrder: GenericObject = descriptor.order;
-                const positionId: string = plainOrder?.positionId?.toString();
+            switch (descriptor.executionType) {
+                case "SWAP": {
+                    // TODO: pass the real quantity
+                    this.onSwap(NaN);
 
-                if (positionId === this.id) {
-                    this.onOrderFill(await this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder));
+                    break;
                 }
+                case "ORDER_REPLACED": {
+                    this.onProtectionChange(this.#cTraderBrokerAccount.normalizePlainPositionProtection(descriptor.position));
 
-                break;
+                    break;
+                }
+                case "ORDER_FILLED":
+                case "ORDER_PARTIAL_FILL": {
+                    this.onOrderFill(await this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder));
+
+                    break;
+                }
             }
         }
 
@@ -172,16 +197,31 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         this.#updateEventIsLocked = false;
 
         if (nextDescriptor) {
-            this.#onUpdate(nextDescriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
+            this.#onUpdate(nextDescriptor);
+        }
+        else if (this.status === MidaBrokerPositionStatus.CLOSED && this.#updateEventUuid) {
+            this.#connection.removeEventListener(this.#updateEventUuid);
+
+            this.#updateEventUuid = undefined;
         }
     }
 
     #configureListeners (): void {
-        this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
+        this.#updateEventUuid = this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
-                this.#onUpdate(descriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
+                this.#onUpdate(descriptor);
             }
         });
+    }
+
+    #hasOrder (id: string): boolean {
+        for (const order of this.orders) {
+            if (order.id === id) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     async #sendCommand (payloadType: string, parameters?: GenericObject, messageId?: string): Promise<GenericObject> {
