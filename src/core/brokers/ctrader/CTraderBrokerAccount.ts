@@ -279,25 +279,6 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return Promise.all(ordersPromises);
     }
 
-    async #getPlainOrders (fromTimestamp?: number, toTimestamp?: number): Promise<GenericObject[]> {
-        const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24 * 7;
-        const normalizedToTimestamp: number = toTimestamp ?? Date.now();
-        const plainOrders: GenericObject[] = [];
-
-        await this.#preloadOrders(normalizedFromTimestamp, normalizedToTimestamp);
-
-        for (const plainOrder of [ ...this.#plainOrders.values(), ]) {
-            if (
-                Number(plainOrder.tradeData.openTimestamp) >= normalizedFromTimestamp
-                && Number(plainOrder.tradeData.openTimestamp) <= normalizedToTimestamp
-            ) {
-                plainOrders.push(plainOrder);
-            }
-        }
-
-        return plainOrders;
-    }
-
     public override async getPendingOrders (): Promise<MidaBrokerOrder[]> {
         const plainOrders: GenericObject[] = (await this.#sendCommand("ProtoOAReconcileReq")).order;
         const pendingOrdersPromises: Promise<MidaBrokerOrder>[] = [];
@@ -851,6 +832,25 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return protection;
     }
 
+    async #getPlainOrders (fromTimestamp?: number, toTimestamp?: number): Promise<GenericObject[]> {
+        const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24 * 7;
+        const normalizedToTimestamp: number = toTimestamp ?? Date.now();
+        const plainOrders: GenericObject[] = [];
+
+        await this.#preloadOrders(normalizedFromTimestamp, normalizedToTimestamp);
+
+        for (const plainOrder of [ ...this.#plainOrders.values(), ]) {
+            if (
+                Number(plainOrder.tradeData.openTimestamp) >= normalizedFromTimestamp
+                && Number(plainOrder.tradeData.openTimestamp) <= normalizedToTimestamp
+            ) {
+                plainOrders.push(plainOrder);
+            }
+        }
+
+        return plainOrders;
+    }
+
     async #getAccountDescriptor (): Promise<GenericObject> {
         return (await this.#sendCommand("ProtoOATraderReq")).trader;
     }
@@ -1223,13 +1223,6 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
     async #sendCommand (payloadType: string, parameters?: GenericObject, messageId?: string): Promise<GenericObject> {
         return this.#connection.sendCommand(payloadType, {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
-            ...parameters ?? {},
-        }, messageId);
-    }
-
-    async #trySendCommand (payloadType: string, parameters?: GenericObject, messageId?: string): Promise<GenericObject | undefined> {
-        return this.#connection.trySendCommand(payloadType, {
             ctidTraderAccountId: this.#cTraderBrokerAccountId,
             ...parameters ?? {},
         }, messageId);
