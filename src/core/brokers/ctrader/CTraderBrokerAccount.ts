@@ -639,16 +639,20 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
                 requestDirectives.orderType = "MARKET";
             }
 
-            if (Number.isFinite(stopLoss)) {
-                requestDirectives.stopLoss = stopLoss;
-            }
+            // cTrader Open API doesn't allow using absolute protection on market orders
+            // TODO: find a solution
+            if (requestDirectives.orderType !== "MARKET") {
+                if (Number.isFinite(stopLoss)) {
+                    requestDirectives.stopLoss = stopLoss;
+                }
 
-            if (Number.isFinite(takeProfit)) {
-                requestDirectives.takeProfit = takeProfit;
-            }
+                if (Number.isFinite(takeProfit)) {
+                    requestDirectives.takeProfit = takeProfit;
+                }
 
-            if (trailingStopLoss === true) {
-                requestDirectives.trailingStopLoss = true;
+                if (trailingStopLoss === true) {
+                    requestDirectives.trailingStopLoss = true;
+                }
             }
         }
         else {
@@ -695,12 +699,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             }
         });
 
-        await this.#sendCommand("ProtoOANewOrderReq", requestDirectives, uuid);
+        this.#sendCommand("ProtoOANewOrderReq", requestDirectives, uuid);
 
         return resolver;
     }
 
-    /** Used to convert a cTrader server deal to a CTraderBrokerDeal. */
+    /** Used to convert a cTrader server deal to a CTraderBrokerDeal */
     // eslint-disable-next-line max-lines-per-function
     public async normalizePlainDeal (plainDeal: GenericObject): Promise<CTraderBrokerDeal> {
         const id = plainDeal.dealId.toString();
@@ -949,23 +953,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     #onExecution (descriptor: GenericObject): void {
-        const plainOrder: GenericObject = descriptor.order;
-
-        if (plainOrder) {
-            this.#plainOrders.set(plainOrder.orderId, plainOrder);
-        }
-
-        const plainDeal: GenericObject = descriptor.deal;
-
-        if (plainDeal) {
-            this.#plainDeals.set(plainDeal.dealId, plainDeal);
-        }
-
-        const plainPosition: GenericObject = descriptor.position;
-
-        if (plainPosition) {
-            this.#plainDeals.set(plainPosition.positionId, plainPosition);
-        }
+        // Silence is golden
     }
 
     // eslint-disable-next-line max-lines-per-function
@@ -1006,7 +994,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
                 return;
             }
 
-            const positionId: string = descriptor.positionId.toString();
+            // const positionId: string = descriptor.positionId.toString();
         });
         // </position-update>
     }
@@ -1049,11 +1037,11 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     #getDealsDescriptorsByOrderId (id: string): GenericObject[] {
-        return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal?.orderId?.toString() === id);
+        return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal.orderId.toString() === id);
     }
 
     #getDealsDescriptorsByPositionId (id: string): GenericObject[] {
-        return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal?.positionId?.toString() === id);
+        return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal.positionId.toString() === id);
     }
 
     #getPositionDescriptorById (id: string): GenericObject | undefined {

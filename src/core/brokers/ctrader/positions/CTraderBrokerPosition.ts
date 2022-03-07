@@ -135,7 +135,7 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             requestDescriptor.trailingStopLoss = protection.trailingStopLoss;
         }
 
-        await this.#connection.sendCommand("ProtoOAAmendPositionSLTPReq", requestDescriptor);
+        this.#connection.sendCommand("ProtoOAAmendPositionSLTPReq", requestDescriptor);
     }
 
     public override async setStopLoss (stopLoss: number): Promise<void> {
@@ -163,15 +163,14 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         const positionId: string = plainOrder?.positionId?.toString();
 
         if (positionId && positionId === this.id) {
-            const isOrderAssociated: boolean = !this.orders.find((order: MidaBrokerOrder) => order.id === plainOrder?.orderId?.toString());
-
-            // Used to associate the order to the actual position (if it has not already been done)
-            if (!isOrderAssociated) {
+            // Used to associate the order to the actual position
+            if (!this.#hasOrder(plainOrder.orderId.toString())) {
                 this.onOrder(await this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder));
             }
 
             switch (descriptor.executionType) {
                 case "SWAP": {
+                    // TODO: pass the real quantity
                     this.onSwap(NaN);
 
                     break;
@@ -195,7 +194,7 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         this.#updateEventIsLocked = false;
 
         if (nextDescriptor) {
-            this.#onUpdate(nextDescriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
+            this.#onUpdate(nextDescriptor);
         }
         else if (this.status === MidaBrokerPositionStatus.CLOSED && this.#updateEventUuid) {
             this.#connection.removeEventListener(this.#updateEventUuid);
@@ -207,9 +206,19 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
     #configureListeners (): void {
         this.#updateEventUuid = this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
-                this.#onUpdate(descriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
+                this.#onUpdate(descriptor);
             }
         });
+    }
+
+    #hasOrder (id: string): boolean {
+        for (const order of this.orders) {
+            if (order.id === id) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     async #sendCommand (payloadType: string, parameters?: GenericObject, messageId?: string): Promise<GenericObject> {
