@@ -22,7 +22,7 @@ import {
     MidaSymbolPeriod,
     MidaSymbolPriceType,
     MidaSymbolTick,
-    MidaSymbolTickMovementType,
+    MidaSymbolTickMovementType, MidaTimeframe,
     MidaUtilities,
 } from "@reiryoku/mida";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
@@ -673,10 +673,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             order.on(eventType, listeners[eventType]);
         }
 
-        const normalizerUuid: string = order.on("*", () => {
-            if (order.id) {
-                order.removeEventListener(normalizerUuid);
-                this.#normalizedOrders.set(order.id, order);
+        const normalizeEventUuid: string = order.on("*", () => {
+            const id: string | undefined = order.id;
+
+            if (id) {
+                order.removeEventListener(normalizeEventUuid);
+                this.#normalizedOrders.set(id, order);
             }
         });
 
@@ -796,8 +798,8 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         this.#normalizedDeals.set(normalizedDeal.id, normalizedDeal);
 
-        const order: CTraderBrokerOrder = await this.getOrderById(orderId) as CTraderBrokerOrder;
-        const position: CTraderBrokerPosition = await this.getPositionById(positionId) as CTraderBrokerPosition;
+        // eslint-disable-next-line max-len
+        const [ order, position, ] = await Promise.all([ this.getOrderById(orderId) as Promise<CTraderBrokerOrder>, this.getPositionById(positionId) as Promise<CTraderBrokerPosition>, ]);
 
         return normalizedDeal;
     }
@@ -825,16 +827,16 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         if (Number.isFinite(stopLoss) && stopLoss !== 0) {
             protection.stopLoss = stopLoss;
+            protection.trailingStopLoss = trailingStopLoss;
         }
-
-        protection.trailingStopLoss = trailingStopLoss;
 
         return protection;
     }
 
     async #getPlainOrders (fromTimestamp?: number, toTimestamp?: number): Promise<GenericObject[]> {
-        const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24 * 7;
-        const normalizedToTimestamp: number = toTimestamp ?? Date.now();
+        const actualTimestamp: number = Date.now();
+        const normalizedFromTimestamp: number = fromTimestamp ?? actualTimestamp - MidaTimeframe.W1;
+        const normalizedToTimestamp: number = toTimestamp ?? actualTimestamp;
         const plainOrders: GenericObject[] = [];
 
         await this.#preloadOrders(normalizedFromTimestamp, normalizedToTimestamp);
@@ -952,8 +954,35 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
     }
 
-    #onExecution (descriptor: GenericObject): void {
-        // Silence is golden
+    #onUpdate (descriptor: GenericObject): void {
+        // <update-orders>
+        const plainOrder: GenericObject = descriptor.order;
+
+        if (plainOrder?.orderId && plainOrder.orderType && plainOrder.tradeData) {
+            this.#plainOrders.set(plainOrder.orderId, plainOrder);
+        }
+        // </update-orders>
+
+        // <update-deals>
+        const plainDeal: GenericObject = descriptor.deal;
+
+        if (plainDeal?.orderId && plainDeal?.dealId && plainDeal?.positionId) {
+            this.#plainDeals.set(plainDeal.dealId, plainDeal);
+        }
+        // </update-deals>
+
+        // <update-positions>
+        const plainPosition: GenericObject = descriptor.position;
+
+        if (plainPosition?.positionId) {
+            switch (plainPosition?.positionStatus) {
+                case "POSITION_STATUS_OPEN":
+                case "POSITION_STATUS_CLOSED": {
+                    this.#plainDeals.set(plainPosition.positionId, plainPosition);
+                }
+            }
+        }
+        // </update-positions>
     }
 
     // eslint-disable-next-line max-lines-per-function
@@ -961,7 +990,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         // <execution>
         this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
-                this.#onExecution(descriptor);
+                this.#onUpdate(descriptor);
             }
         });
         // </execution>

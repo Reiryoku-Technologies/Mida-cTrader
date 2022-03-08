@@ -31,10 +31,7 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         this.#updateEventIsLocked = false;
         this.#updateEventUuid = undefined;
 
-        // Listen events only if the position is not in a final state
-        if (this.status !== MidaBrokerPositionStatus.CLOSED) {
-            this.#configureListeners();
-        }
+        this.#configureListeners();
     }
 
     get #cTraderBrokerAccount (): CTraderBrokerAccount {
@@ -183,8 +180,8 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
 
                     break;
                 }
-                case "ORDER_FILLED":
-                case "ORDER_PARTIAL_FILL": {
+                case "ORDER_PARTIAL_FILL":
+                case "ORDER_FILLED": {
                     this.onOrderFill(await this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder));
 
                     break;
@@ -199,17 +196,15 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         if (nextDescriptor) {
             this.#onUpdate(nextDescriptor);
         }
-        else if (this.status === MidaBrokerPositionStatus.CLOSED && this.#updateEventUuid) {
-            this.#connection.removeEventListener(this.#updateEventUuid);
-
-            this.#updateEventUuid = undefined;
+        else if (this.status === MidaBrokerPositionStatus.CLOSED) {
+            this.#removeEventsListeners();
         }
     }
 
     #configureListeners (): void {
         this.#updateEventUuid = this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
-                this.#onUpdate(descriptor);
+                this.#onUpdate(descriptor); // Not using await is intended
             }
         });
     }
@@ -222,6 +217,14 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
         }
 
         return false;
+    }
+
+    #removeEventsListeners (): void {
+        if (this.#updateEventUuid) {
+            this.#connection.removeEventListener(this.#updateEventUuid);
+
+            this.#updateEventUuid = undefined;
+        }
     }
 
     async #sendCommand (payloadType: string, parameters?: GenericObject, messageId?: string): Promise<GenericObject> {

@@ -10,10 +10,13 @@ import { CTraderConnection } from "@reiryoku/ctrader-layer";
 import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
 
 export class CTraderBrokerOrder extends MidaBrokerOrder {
+    // The uuid associated to the order request
     readonly #uuid: string;
     readonly #connection: CTraderConnection;
     readonly #updateEventQueue: GenericObject[];
     #updateEventIsLocked: boolean;
+    #updateEventUuid?: string;
+    #rejectEventUuid?: string;
 
     public constructor ({
         id,
@@ -58,6 +61,8 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
         this.#connection = connection;
         this.#updateEventQueue = [];
         this.#updateEventIsLocked = false;
+        this.#updateEventUuid = undefined;
+        this.#rejectEventUuid = undefined;
 
         // Listen events only if the order is not in a final state
         if (
@@ -83,7 +88,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             return;
         }
 
-        await this.#connection.sendCommand("ProtoOACancelOrderReq", {
+        this.#connection.sendCommand("ProtoOACancelOrderReq", {
             ctidTraderAccountId: this.#cTraderBrokerAccountId,
             orderId: this.id,
         });
@@ -128,34 +133,33 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
                 break;
             }
+            case "ORDER_PARTIAL_FILL":
             case "ORDER_FILLED": {
-                if (!this.position && positionId) {
-                    this.position = await this.brokerAccount.getPositionById(positionId);
-                }
+                this.#removeEventsListeners();
+
+                this.position = this.position ?? await this.brokerAccount.getPositionById(positionId);
 
                 this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
-                this.onStatusChange(MidaBrokerOrderStatus.FILLED);
+                this.onStatusChange(
+                    descriptor.executionType === "ORDER_FILLED" ? MidaBrokerOrderStatus.FILLED : MidaBrokerOrderStatus.PARTIALLY_FILLED
+                );
 
                 break;
             }
             case "ORDER_CANCELLED": {
+                this.#removeEventsListeners();
                 this.onStatusChange(MidaBrokerOrderStatus.CANCELLED);
 
                 break;
             }
             case "ORDER_EXPIRED": {
+                this.#removeEventsListeners();
                 this.onStatusChange(MidaBrokerOrderStatus.EXPIRED);
 
                 break;
             }
             case "ORDER_REJECTED": {
                 this.#onReject(descriptor);
-
-                break;
-            }
-            case "ORDER_PARTIAL_FILL": {
-                this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
-                this.onStatusChange(MidaBrokerOrderStatus.PARTIALLY_FILLED);
 
                 break;
             }
@@ -166,11 +170,13 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
         this.#updateEventIsLocked = false;
 
         if (nextDescriptor) {
-            this.#onUpdate(nextDescriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
+            this.#onUpdate(nextDescriptor);
         }
     }
 
     #onReject (descriptor: GenericObject): void {
+        this.#removeEventsListeners();
+
         this.lastUpdateDate = new MidaDate();
 
         switch (descriptor.errorCode) {
@@ -202,7 +208,8 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
                 break;
             }
             default: {
-                throw new Error();
+                // @ts-ignore
+                this.rejectionType = `UNKNOWN REJECTION TYPE | ${descriptor.errorCode}`;
             }
         }
 
@@ -211,20 +218,20 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
     #configureListeners (): void {
         // <order-execution>
-        this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
+        this.#updateEventUuid = this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
             if (
                 descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId &&
                 (orderId && orderId === this.id || descriptor.clientMsgId === this.#uuid)
             ) {
-                this.#onUpdate(descriptor).then(() => undefined); // then() is used just to avoid annoying editors warning
+                this.#onUpdate(descriptor); // Not using await is intended
             }
         });
         // </order-execution>
 
         // <request-validation-errors>
-        this.#connection.on("ProtoOAOrderErrorEvent", ({ descriptor, }): void => {
+        this.#rejectEventUuid = this.#connection.on("ProtoOAOrderErrorEvent", ({ descriptor, }): void => {
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
             if (
@@ -235,5 +242,19 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             }
         });
         // </request-validation-errors>
+    }
+
+    #removeEventsListeners (): void {
+        if (this.#updateEventUuid) {
+            this.#connection.removeEventListener(this.#updateEventUuid);
+
+            this.#updateEventUuid = undefined;
+        }
+
+        if (this.#rejectEventUuid) {
+            this.#connection.removeEventListener(this.#rejectEventUuid);
+
+            this.#rejectEventUuid = undefined;
+        }
     }
 }
