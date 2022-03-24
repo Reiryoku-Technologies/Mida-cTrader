@@ -118,6 +118,10 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         await Promise.all([ this.#preloadAssets(), this.#preloadSymbols(), ]);
     }
 
+    public async preload (): Promise<void> {
+        await Promise.all([ this.preloadAssetsAndSymbols(), ]);
+    }
+
     public override async getBalance (): Promise<number> {
         const accountDescriptor: GenericObject = await this.#getAccountDescriptor();
         const balance = Number(accountDescriptor.balance.toString());
@@ -397,7 +401,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         switch (plainOrder.orderStatus) {
             case "ORDER_STATUS_ACCEPTED": {
-                if (Number.isFinite(limitPrice) && limitPrice !== 0 || Number.isFinite(stopPrice) && stopPrice !== 0) {
+                if (plainOrder.orderType.toUpperCase() !== "MARKET") {
                     status = MidaBrokerOrderStatus.PENDING;
                 }
                 else {
@@ -974,13 +978,8 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         // <update-positions>
         const plainPosition: GenericObject = descriptor.position;
 
-        if (plainPosition?.positionId) {
-            switch (plainPosition?.positionStatus) {
-                case "POSITION_STATUS_OPEN":
-                case "POSITION_STATUS_CLOSED": {
-                    this.#plainDeals.set(plainPosition.positionId, plainPosition);
-                }
-            }
+        if (plainPosition?.positionId && plainPosition?.positionStatus) {
+            this.#plainPositions.set(plainPosition.positionId, plainPosition);
         }
         // </update-positions>
     }

@@ -1,5 +1,6 @@
 import {
     GenericObject,
+    MidaBrokerOrderStatus,
     MidaBrokerPosition,
     MidaBrokerPositionProtection,
     MidaBrokerPositionStatus,
@@ -7,6 +8,7 @@ import {
 import { CTraderBrokerPositionParameters } from "#brokers/ctrader/positions/CTraderBrokerPositionParameters";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
 import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
+import { CTraderBrokerOrder } from "#brokers/ctrader/orders/CTraderBrokerOrder";
 
 export class CTraderBrokerPosition extends MidaBrokerPosition {
     readonly #connection: CTraderConnection;
@@ -182,7 +184,13 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
                 }
                 case "ORDER_PARTIAL_FILL":
                 case "ORDER_FILLED": {
-                    this.onOrderFill(await this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder));
+                    const order: CTraderBrokerOrder = await this.#cTraderBrokerAccount.normalizePlainOrder(plainOrder);
+
+                    if (order.status !== MidaBrokerOrderStatus.FILLED) {
+                        await order.on("fill");
+                    }
+
+                    this.onOrderFill(order);
 
                     break;
                 }

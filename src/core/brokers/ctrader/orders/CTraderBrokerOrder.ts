@@ -69,6 +69,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             status !== MidaBrokerOrderStatus.CANCELLED &&
             status !== MidaBrokerOrderStatus.REJECTED &&
             status !== MidaBrokerOrderStatus.EXPIRED &&
+            status !== MidaBrokerOrderStatus.PARTIALLY_FILLED &&
             status !== MidaBrokerOrderStatus.FILLED
         ) {
             this.#configureListeners();
@@ -136,10 +137,10 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             case "ORDER_PARTIAL_FILL":
             case "ORDER_FILLED": {
                 this.#removeEventsListeners();
+                this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
 
                 this.position = this.position ?? await this.brokerAccount.getPositionById(positionId);
 
-                this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
                 this.onStatusChange(
                     descriptor.executionType === "ORDER_FILLED" ? MidaBrokerOrderStatus.FILLED : MidaBrokerOrderStatus.PARTIALLY_FILLED
                 );
