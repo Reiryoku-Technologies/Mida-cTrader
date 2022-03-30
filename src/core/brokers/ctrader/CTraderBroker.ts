@@ -7,7 +7,6 @@ export class CTraderBroker extends MidaBroker {
     public constructor () {
         super({
             name: "cTrader",
-            legalName: "cTrader",
             websiteUri: "https://ctrader.com",
         });
     }

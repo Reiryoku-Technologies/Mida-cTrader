@@ -14,7 +14,8 @@ import {
     MidaBrokerOrderStatus,
     MidaBrokerOrderTimeInForce,
     MidaBrokerPosition,
-    MidaBrokerPositionDirection, MidaBrokerPositionProtection,
+    MidaBrokerPositionDirection,
+    MidaBrokerPositionProtection,
     MidaDate,
     MidaEventListener,
     MidaSymbol,
@@ -22,7 +23,8 @@ import {
     MidaSymbolPeriod,
     MidaSymbolPriceType,
     MidaSymbolTick,
-    MidaSymbolTickMovementType, MidaTimeframe,
+    MidaSymbolTickMovementType,
+    MidaTimeframe,
     MidaUtilities,
 } from "@reiryoku/mida";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
@@ -168,7 +170,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async logout (): Promise<void> {
-        throw new Error();
+        this.#connection.close();
     }
 
     public override async getSymbolPeriods (symbol: string, timeframe: number, price?: MidaSymbolPriceType): Promise<MidaSymbolPeriod[]> {
@@ -411,7 +413,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
                 break;
             }
             case "ORDER_STATUS_FILLED": {
-                status = MidaBrokerOrderStatus.FILLED;
+                status = MidaBrokerOrderStatus.EXECUTED;
 
                 break;
             }
@@ -533,7 +535,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
     // eslint-disable-next-line max-lines-per-function, complexity
     public override async placeOrder (directives: MidaBrokerOrderDirectives): Promise<CTraderBrokerOrder> {
-        const uuid: string = MidaUtilities.generateUuid();
+        const uuid: string = MidaUtilities.uuid();
         const positionId: string | undefined = directives.positionId;
         let symbol: string | undefined = undefined;
         let requestedVolume: number = directives.volume as number;
@@ -650,7 +652,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             "pending",
             "cancel",
             "expire",
-            "fill",
+            "execute",
         ];
         const resolver: Promise<CTraderBrokerOrder> = new Promise((resolve: (order: CTraderBrokerOrder) => void) => {
             if (resolverEvents.length === 0) {
@@ -730,13 +732,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         let rejectionType: MidaBrokerDealRejectionType | undefined = undefined;
 
         switch (plainDeal.dealStatus) {
-            case "PARTIALLY_FILLED": {
-                status = MidaBrokerDealStatus.PARTIALLY_FILLED;
-
-                break;
-            }
+            case "PARTIALLY_FILLED":
             case "FILLED": {
-                status = MidaBrokerDealStatus.FILLED;
+                status = MidaBrokerDealStatus.EXECUTED;
 
                 break;
             }
@@ -752,15 +750,10 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
                 break;
             }
+            case "ERROR":
             case "INTERNALLY_REJECTED": {
                 status = MidaBrokerDealStatus.REJECTED;
-                rejectionType = MidaBrokerDealRejectionType.INTERNAL_BROKER_ERROR;
-
-                break;
-            }
-            case "ERROR": {
-                status = MidaBrokerDealStatus.REJECTED;
-                rejectionType = MidaBrokerDealRejectionType.INTERNAL_LIQUIDITY_PROVIDER_ERROR;
+                rejectionType = MidaBrokerDealRejectionType.UNKNOWN;
 
                 break;
             }
@@ -782,9 +775,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             id,
             order: (): CTraderBrokerOrder => order,
             position: (): CTraderBrokerPosition => position,
-            symbol,
-            requestedVolume,
-            filledVolume,
+            volume: filledVolume,
             direction,
             status,
             purpose,
@@ -882,10 +873,11 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
             this.#assets.set(name, plainAsset);
             this.#normalizedAssets.set(name, new MidaAsset({
-                brokerAccount: this,
+                id: name,
                 name,
                 description: "",
                 measurementUnit: "",
+                brokerAccount: this,
             }));
         });
     }

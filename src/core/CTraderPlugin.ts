@@ -10,7 +10,6 @@ export const ORDER_SIGNATURE: string = "Mida/cTrader";
 export class CTraderPlugin extends MidaPlugin {
     public constructor () {
         super({
-            id: "mida-ctrader",
             name: "cTrader",
             version: "1.2.0",
             description: "A Mida plugin to operate with cTrader",
@@ -18,7 +17,7 @@ export class CTraderPlugin extends MidaPlugin {
     }
 
     public override install (actions: MidaPluginActions, options: CTraderPluginOptions = {}): void {
-        actions.addBroker(CTraderPlugin.#broker);
+        actions.addBroker("cTrader", CTraderPlugin.#broker);
     }
 
     /* *** *** *** Reiryoku Technologies *** *** *** */

@@ -69,8 +69,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             status !== MidaBrokerOrderStatus.CANCELLED &&
             status !== MidaBrokerOrderStatus.REJECTED &&
             status !== MidaBrokerOrderStatus.EXPIRED &&
-            status !== MidaBrokerOrderStatus.PARTIALLY_FILLED &&
-            status !== MidaBrokerOrderStatus.FILLED
+            status !== MidaBrokerOrderStatus.EXECUTED
         ) {
             this.#configureListeners();
         }
@@ -141,9 +140,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
                 this.position = this.position ?? await this.brokerAccount.getPositionById(positionId);
 
-                this.onStatusChange(
-                    descriptor.executionType === "ORDER_FILLED" ? MidaBrokerOrderStatus.FILLED : MidaBrokerOrderStatus.PARTIALLY_FILLED
-                );
+                this.onStatusChange(MidaBrokerOrderStatus.EXECUTED);
 
                 break;
             }
@@ -194,7 +191,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
                 break;
             }
             case "TRADING_DISABLED": {
-                this.rejectionType = MidaBrokerOrderRejectionType.SYMBOL_DISABLED;
+                this.rejectionType = MidaBrokerOrderRejectionType.SYMBOL_TRADING_DISABLED;
 
                 break;
             }
