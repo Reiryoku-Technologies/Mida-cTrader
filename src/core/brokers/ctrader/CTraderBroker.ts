@@ -7,7 +7,6 @@ export class CTraderBroker extends MidaBroker {
     public constructor () {
         super({
             name: "cTrader",
-            legalName: "cTrader",
             websiteUri: "https://ctrader.com",
         });
     }
@@ -21,7 +20,7 @@ export class CTraderBroker extends MidaBroker {
         const cTraderApplication: CTraderApplication = await CTraderApplication.create({ clientId, clientSecret, });
         const brokerAccount: CTraderBrokerAccount = await cTraderApplication.loginBrokerAccount(accessToken, cTraderBrokerAccountId);
 
-        await brokerAccount.preloadAssetsAndSymbols();
+        await brokerAccount.preload();
 
         return brokerAccount;
     }

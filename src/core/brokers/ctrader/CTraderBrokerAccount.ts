@@ -14,7 +14,8 @@ import {
     MidaBrokerOrderStatus,
     MidaBrokerOrderTimeInForce,
     MidaBrokerPosition,
-    MidaBrokerPositionDirection, MidaBrokerPositionProtection,
+    MidaBrokerPositionDirection,
+    MidaBrokerPositionProtection,
     MidaDate,
     MidaEventListener,
     MidaSymbol,
@@ -23,6 +24,7 @@ import {
     MidaSymbolPriceType,
     MidaSymbolTick,
     MidaSymbolTickMovementType,
+    MidaTimeframe,
     MidaUtilities,
 } from "@reiryoku/mida";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
@@ -118,6 +120,10 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         await Promise.all([ this.#preloadAssets(), this.#preloadSymbols(), ]);
     }
 
+    public async preload (): Promise<void> {
+        await Promise.all([ this.preloadAssetsAndSymbols(), ]);
+    }
+
     public override async getBalance (): Promise<number> {
         const accountDescriptor: GenericObject = await this.#getAccountDescriptor();
         const balance = Number(accountDescriptor.balance.toString());
@@ -164,7 +170,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async logout (): Promise<void> {
-        throw new Error();
+        this.#connection.close();
     }
 
     public override async getSymbolPeriods (symbol: string, timeframe: number, price?: MidaSymbolPriceType): Promise<MidaSymbolPeriod[]> {
@@ -397,7 +403,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         switch (plainOrder.orderStatus) {
             case "ORDER_STATUS_ACCEPTED": {
-                if (Number.isFinite(limitPrice) && limitPrice !== 0 || Number.isFinite(stopPrice) && stopPrice !== 0) {
+                if (plainOrder.orderType.toUpperCase() !== "MARKET") {
                     status = MidaBrokerOrderStatus.PENDING;
                 }
                 else {
@@ -407,7 +413,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
                 break;
             }
             case "ORDER_STATUS_FILLED": {
-                status = MidaBrokerOrderStatus.FILLED;
+                status = MidaBrokerOrderStatus.EXECUTED;
 
                 break;
             }
@@ -529,7 +535,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
     // eslint-disable-next-line max-lines-per-function, complexity
     public override async placeOrder (directives: MidaBrokerOrderDirectives): Promise<CTraderBrokerOrder> {
-        const uuid: string = MidaUtilities.generateUuid();
+        const uuid: string = MidaUtilities.uuid();
         const positionId: string | undefined = directives.positionId;
         let symbol: string | undefined = undefined;
         let requestedVolume: number = directives.volume as number;
@@ -646,7 +652,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             "pending",
             "cancel",
             "expire",
-            "fill",
+            "execute",
         ];
         const resolver: Promise<CTraderBrokerOrder> = new Promise((resolve: (order: CTraderBrokerOrder) => void) => {
             if (resolverEvents.length === 0) {
@@ -673,10 +679,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             order.on(eventType, listeners[eventType]);
         }
 
-        const normalizerUuid: string = order.on("*", () => {
-            if (order.id) {
-                order.removeEventListener(normalizerUuid);
-                this.#normalizedOrders.set(order.id, order);
+        const normalizeEventUuid: string = order.on("*", () => {
+            const id: string | undefined = order.id;
+
+            if (id) {
+                order.removeEventListener(normalizeEventUuid);
+                this.#normalizedOrders.set(id, order);
             }
         });
 
@@ -724,13 +732,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         let rejectionType: MidaBrokerDealRejectionType | undefined = undefined;
 
         switch (plainDeal.dealStatus) {
-            case "PARTIALLY_FILLED": {
-                status = MidaBrokerDealStatus.PARTIALLY_FILLED;
-
-                break;
-            }
+            case "PARTIALLY_FILLED":
             case "FILLED": {
-                status = MidaBrokerDealStatus.FILLED;
+                status = MidaBrokerDealStatus.EXECUTED;
 
                 break;
             }
@@ -746,15 +750,10 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
                 break;
             }
+            case "ERROR":
             case "INTERNALLY_REJECTED": {
                 status = MidaBrokerDealStatus.REJECTED;
-                rejectionType = MidaBrokerDealRejectionType.INTERNAL_BROKER_ERROR;
-
-                break;
-            }
-            case "ERROR": {
-                status = MidaBrokerDealStatus.REJECTED;
-                rejectionType = MidaBrokerDealRejectionType.INTERNAL_LIQUIDITY_PROVIDER_ERROR;
+                rejectionType = MidaBrokerDealRejectionType.UNKNOWN;
 
                 break;
             }
@@ -776,9 +775,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             id,
             order: (): CTraderBrokerOrder => order,
             position: (): CTraderBrokerPosition => position,
-            symbol,
-            requestedVolume,
-            filledVolume,
+            volume: filledVolume,
             direction,
             status,
             purpose,
@@ -796,8 +793,8 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         this.#normalizedDeals.set(normalizedDeal.id, normalizedDeal);
 
-        const order: CTraderBrokerOrder = await this.getOrderById(orderId) as CTraderBrokerOrder;
-        const position: CTraderBrokerPosition = await this.getPositionById(positionId) as CTraderBrokerPosition;
+        // eslint-disable-next-line max-len
+        const [ order, position, ] = await Promise.all([ this.getOrderById(orderId) as Promise<CTraderBrokerOrder>, this.getPositionById(positionId) as Promise<CTraderBrokerPosition>, ]);
 
         return normalizedDeal;
     }
@@ -825,16 +822,16 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         if (Number.isFinite(stopLoss) && stopLoss !== 0) {
             protection.stopLoss = stopLoss;
+            protection.trailingStopLoss = trailingStopLoss;
         }
-
-        protection.trailingStopLoss = trailingStopLoss;
 
         return protection;
     }
 
     async #getPlainOrders (fromTimestamp?: number, toTimestamp?: number): Promise<GenericObject[]> {
-        const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24 * 7;
-        const normalizedToTimestamp: number = toTimestamp ?? Date.now();
+        const actualTimestamp: number = Date.now();
+        const normalizedFromTimestamp: number = fromTimestamp ?? actualTimestamp - MidaTimeframe.W1;
+        const normalizedToTimestamp: number = toTimestamp ?? actualTimestamp;
         const plainOrders: GenericObject[] = [];
 
         await this.#preloadOrders(normalizedFromTimestamp, normalizedToTimestamp);
@@ -876,10 +873,11 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
             this.#assets.set(name, plainAsset);
             this.#normalizedAssets.set(name, new MidaAsset({
-                brokerAccount: this,
+                id: name,
                 name,
                 description: "",
                 measurementUnit: "",
+                brokerAccount: this,
             }));
         });
     }
@@ -952,8 +950,30 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
     }
 
-    #onExecution (descriptor: GenericObject): void {
-        // Silence is golden
+    #onUpdate (descriptor: GenericObject): void {
+        // <update-orders>
+        const plainOrder: GenericObject = descriptor.order;
+
+        if (plainOrder?.orderId && plainOrder.orderType && plainOrder.tradeData) {
+            this.#plainOrders.set(plainOrder.orderId, plainOrder);
+        }
+        // </update-orders>
+
+        // <update-deals>
+        const plainDeal: GenericObject = descriptor.deal;
+
+        if (plainDeal?.orderId && plainDeal?.dealId && plainDeal?.positionId) {
+            this.#plainDeals.set(plainDeal.dealId, plainDeal);
+        }
+        // </update-deals>
+
+        // <update-positions>
+        const plainPosition: GenericObject = descriptor.position;
+
+        if (plainPosition?.positionId && plainPosition?.positionStatus) {
+            this.#plainPositions.set(plainPosition.positionId, plainPosition);
+        }
+        // </update-positions>
     }
 
     // eslint-disable-next-line max-lines-per-function
@@ -961,7 +981,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         // <execution>
         this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
             if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
-                this.#onExecution(descriptor);
+                this.#onUpdate(descriptor);
             }
         });
         // </execution>
