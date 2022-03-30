@@ -1,3 +1,5 @@
+2.0.1 - 31-03-2022
+===================
 ### Bug fixes
 * Create unique plugin id [#11](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/11)
 
