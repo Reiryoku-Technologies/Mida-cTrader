@@ -1,3 +1,6 @@
+### Features
+* **_BREAKING_** Generic codebase changes and improvements, update major version of Mida [#10](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/10)
+
 ### Bug fixes
 * Correctly update position orders when a new order impacting the existing position is created [#9](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/9) | https://github.com/Reiryoku-Technologies/Mida-cTrader/issues/7
 * Use the correct format when sending a request to update the protection of a position [#9](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/9)
