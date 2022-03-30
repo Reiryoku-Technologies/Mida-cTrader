@@ -1,7 +1,7 @@
 {
     "name": "@reiryoku/mida-ctrader",
-    "version": "1.2.0",
-    "description": "A Mida plugin to operate with cTrader",
+    "version": "2.0.0",
+    "description": "A Mida plugin for using cTrader accounts",
     "license": "MIT",
     "homepage": "https://github.com/Reiryoku-Technologies/Mida-cTrader",
     "bugs": {
