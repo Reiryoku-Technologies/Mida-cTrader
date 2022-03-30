@@ -1,3 +1,5 @@
+2.0.0 - 30-03-2022
+===================
 ### Features
 * **_BREAKING_** Generic codebase changes and improvements, update major version of Mida [#10](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/10)
 
