@@ -1266,8 +1266,32 @@ export function normalizeTimeframe (timeframe: number): string {
         case 300: {
             return "M5";
         }
+        case 600: {
+            return "M10";
+        }
+        case 900: {
+            return "M15";
+        }
+        case 1800: {
+            return "M30";
+        }
+        case 3600: {
+            return "H1";
+        }
+        case 14400: {
+            return "H4";
+        }
+        case 43200: {
+            return "H12";
+        }
         case 86400: {
             return "D1";
+        }
+        case 604800: {
+            return "W1";
+        }
+        case 2592000: {
+            return "MN1";
         }
         default: {
             throw new Error();
