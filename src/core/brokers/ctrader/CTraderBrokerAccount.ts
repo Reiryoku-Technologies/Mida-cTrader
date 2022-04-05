@@ -118,7 +118,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         const plainOpenPositions: GenericObject[] = [];
 
         for (const plainOpenPosition of [ ...this.#plainPositions.values(), ]) {
-            if (plainOpenPosition.positionStatus === "OPEN") {
+            if (plainOpenPosition.positionStatus === "POSITION_STATUS_OPEN") {
                 plainOpenPositions.push(plainOpenPosition);
             }
         }
