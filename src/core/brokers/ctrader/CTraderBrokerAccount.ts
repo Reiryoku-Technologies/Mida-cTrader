@@ -1198,7 +1198,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             return this.#plainDeals.get(id);
         }
 
-        const W1: number = 604800000; // max. 1 week as indicated at https://spotware.github.io/open-api-docs/messages/#protooadeallistreq
+        const { W1, } = MidaTimeframe; // max. 1 week as indicated at https://spotware.github.io/open-api-docs/messages/#protooadeallistreq
         let toTimestamp: number = Date.now();
         let fromTimestamp: number = toTimestamp - W1;
         let totalTimestamp: number = W1;
@@ -1294,7 +1294,7 @@ export function normalizeTimeframe (timeframe: number): string {
             return "MN1";
         }
         default: {
-            throw new Error();
+            throw new Error("Unsupported timeframe");
         }
     }
 }

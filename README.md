@@ -25,3 +25,11 @@ const myAccount = await MidaBroker.login("cTrader", {
     cTraderBrokerAccountId: "",
 });
 ```
+
+### Timeframes
+The supported timeframes<br><br>
+`M1` `M2` `M3` `M4` `M5` `M10` `M15` `M30`<br>
+`H1` `H4` `H12`<br>
+`D1`<br>
+`W1`<br>
+`MN1`<br>
