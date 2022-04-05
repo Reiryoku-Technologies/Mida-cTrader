@@ -50,7 +50,6 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     readonly #plainDeals: Map<string, GenericObject>;
     readonly #normalizedDeals: Map<string, CTraderBrokerDeal>;
     readonly #plainPositions: Map<string, GenericObject>;
-    readonly #plainOpenPositions: Map<string, GenericObject>;
     readonly #normalizedPositions: Map<string, CTraderBrokerPosition>;
     readonly #lastTicks: Map<string, MidaSymbolTick>;
     readonly #internalTickListeners: Map<string, Function>;
@@ -98,7 +97,6 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         this.#plainDeals = new Map();
         this.#normalizedDeals = new Map();
         this.#plainPositions = new Map();
-        this.#plainOpenPositions = new Map();
         this.#normalizedPositions = new Map();
         this.#lastTicks = new Map();
         this.#internalTickListeners = new Map();
@@ -133,7 +131,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public async preload (): Promise<void> {
-        await Promise.all([ this.preloadAssetsAndSymbols(), ]);
+        await Promise.all([ this.preloadAssetsAndSymbols(), this.#preloadOpenPositions(), ]);
     }
 
     public override async getBalance (): Promise<number> {
@@ -290,11 +288,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async getPendingOrders (): Promise<MidaBrokerOrder[]> {
-        const plainOrders: GenericObject[] = (await this.#sendCommand("ProtoOAReconcileReq")).order;
         const pendingOrdersPromises: Promise<MidaBrokerOrder>[] = [];
 
-        for (const plainOrder of plainOrders) {
-            pendingOrdersPromises.push(this.normalizePlainOrder(plainOrder));
+        for (const plainOrder of [ ...this.#plainOrders.values(), ]) {
+            if (plainOrder.orderStatus === "ORDER_STATUS_ACCEPTED" && plainOrder.orderType.toUpperCase() !== "MARKET") {
+                pendingOrdersPromises.push(this.normalizePlainOrder(plainOrder));
+            }
         }
 
         return Promise.all(pendingOrdersPromises);
@@ -374,11 +373,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async getOpenPositions (): Promise<MidaBrokerPosition[]> {
-        await this.#preloadOpenPositions();
-
-        const plainOpenPositions: GenericObject[] = [ ...this.#plainOpenPositions.values(), ];
-
-        return Promise.all(plainOpenPositions.map(
+        return Promise.all(this.plainOpenPositions.map(
             (plainPosition: GenericObject) => this.getPositionById(plainPosition.positionId))
         ) as Promise<MidaBrokerPosition[]>;
     }
@@ -497,7 +492,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             return normalizedPosition;
         }
 
-        const plainPosition: GenericObject | undefined = this.#plainPositions.get(id) ?? this.#plainOpenPositions.get(id);
+        const plainPosition: GenericObject | undefined = this.#plainPositions.get(id);
         const plainOrders: GenericObject[] = await this.#getPlainOrders();
         const positionOrdersPromises: Promise<CTraderBrokerOrder>[] = [];
 
@@ -860,10 +855,8 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         const accountOperativityDescriptor: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
         const plainOpenPositions: GenericObject[] = accountOperativityDescriptor.position;
 
-        this.#plainOpenPositions.clear();
-
         for (const plainOpenPosition of plainOpenPositions) {
-            this.#plainOpenPositions.set(plainOpenPosition.positionId, plainOpenPosition);
+            this.#plainPositions.set(plainOpenPosition.positionId, plainOpenPosition);
         }
     }
 
@@ -1120,7 +1113,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
 
         const quoteAssedId: string = plainSymbol.quoteAssetId.toString();
-        const depositAssetId: string = (await this.#getPlainAssetByName(this.depositCurrencyIso))?.assetId.toString() as string;
+        const depositAssetId: string = this.#getPlainAssetByName(this.depositCurrencyIso)?.assetId.toString() as string;
         let depositConversionChain: GenericObject[] | undefined = this.#depositConversionChains.get(symbol);
         let rate: number = 1;
         let movedAssetId: string = quoteAssedId;
