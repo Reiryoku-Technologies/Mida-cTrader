@@ -2,7 +2,6 @@ import {
     MidaPlugin,
     MidaPluginActions,
 } from "@reiryoku/mida";
-import { CTraderPluginOptions } from "!/src/core/CTraderPluginOptions";
 import { CTraderBroker } from "#brokers/ctrader/CTraderBroker";
 
 export const ORDER_SIGNATURE: string = "Mida/cTrader";
@@ -17,7 +16,7 @@ export class CTraderPlugin extends MidaPlugin {
         });
     }
 
-    public override install (actions: MidaPluginActions, options: CTraderPluginOptions = {}): void {
+    public override install (actions: MidaPluginActions): void {
         actions.addBroker("cTrader", CTraderPlugin.#broker);
     }
 

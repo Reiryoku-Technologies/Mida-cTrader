@@ -116,6 +116,18 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return this.#brokerName;
     }
 
+    public get plainOpenPositions (): GenericObject[] {
+        const plainOpenPositions: GenericObject[] = [];
+
+        for (const plainOpenPosition of [ ...this.#plainPositions.values(), ]) {
+            if (plainOpenPosition.positionStatus === "OPEN") {
+                plainOpenPositions.push(plainOpenPosition);
+            }
+        }
+
+        return plainOpenPositions;
+    }
+
     public async preloadAssetsAndSymbols (): Promise<void> {
         await Promise.all([ this.#preloadAssets(), this.#preloadSymbols(), ]);
     }
@@ -126,21 +138,14 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
     public override async getBalance (): Promise<number> {
         const accountDescriptor: GenericObject = await this.#getAccountDescriptor();
-        const balance = Number(accountDescriptor.balance.toString());
 
-        if (!Number.isFinite(balance)) {
-            throw new Error();
-        }
-
-        return balance / 100;
+        return Number(accountDescriptor.balance.toString()) / 100;
     }
 
     public override async getUsedMargin (): Promise<number> {
-        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
-        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
         let usedMargin: number = 0;
 
-        for (const plainOpenPosition of plainOpenPositions) {
+        for (const plainOpenPosition of this.plainOpenPositions) {
             usedMargin += Number(plainOpenPosition.usedMargin);
         }
 
@@ -148,10 +153,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async getEquity (): Promise<number> {
-        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
-        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
-        // eslint-disable-next-line
-        const unrealizedNetProfits: number[] = await Promise.all(plainOpenPositions.map((plainOpenPosition: GenericObject) => this.getPlainPositionNetProfit(plainOpenPosition)));
+        const unrealizedNetProfits: number[] = await Promise.all(
+            this.plainOpenPositions.map((plainOpenPosition: GenericObject) => this.getPlainPositionNetProfit(plainOpenPosition))
+        );
         let equity: number = await this.getBalance();
 
         for (const unrealizedNetProfit of unrealizedNetProfits) {
@@ -166,14 +170,14 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async isSymbolMarketOpen (symbol: string): Promise<boolean> {
-        throw new Error();
+        throw new Error("Unsupported operation");
     }
 
     public override async logout (): Promise<void> {
-        this.#connection.close();
+        await this.#connection.close();
     }
 
-    public override async getSymbolPeriods (symbol: string, timeframe: number, price?: MidaSymbolPriceType): Promise<MidaSymbolPeriod[]> {
+    public override async getSymbolPeriods (symbol: string, timeframe: number): Promise<MidaSymbolPeriod[]> {
         const periods: MidaSymbolPeriod[] = [];
         const plainSymbol: GenericObject = this.#symbols.get(symbol) as GenericObject;
         const symbolId: string = plainSymbol.symbolId.toString();
@@ -190,7 +194,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
             periods.push(new MidaSymbolPeriod({
                 symbol,
-                startDate: new MidaDate({ timestamp: Number(plainPeriod.utcTimestampInMinutes) * 1000 * 60, }),
+                startDate: new MidaDate(Number(plainPeriod.utcTimestampInMinutes) * 1000 * 60),
                 priceType: MidaSymbolPriceType.BID,
                 open: low + Number(plainPeriod.deltaOpen) / 100000,
                 high: low + Number(plainPeriod.deltaHigh) / 100000,
@@ -237,7 +241,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             quoteAsset: this.getAssetById(plainSymbol.quoteAssetId) as MidaAsset,
             type: MidaSymbolCategory.FOREX,
             digits: Number(completePlainSymbol.digits),
-            leverage: -1, // Unsupported by cTrader
+            leverage: -1, // TODO: add leverage
             minLots: Number(completePlainSymbol.minVolume) / 100 / lotUnits,
             maxLots: Number(completePlainSymbol.maxVolume) / 100 / lotUnits,
             lotUnits,
@@ -1001,10 +1005,13 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             }
 
             const symbolId: string = descriptor.symbolId.toString();
-            const plainSymbol: GenericObject = this.#getPlainSymbolById(symbolId) as GenericObject;
-            const symbol: string = plainSymbol.symbolName;
+            const plainSymbol: GenericObject | undefined = this.#getPlainSymbolById(symbolId);
 
-            this.#completeSymbols.delete(symbol);
+            if (plainSymbol) {
+                this.#completeSymbols.delete(plainSymbol.symbolName);
+            }
+
+            this.preloadAssetsAndSymbols();
         });
         // </symbol-update>
 
