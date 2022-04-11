@@ -217,6 +217,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async getSymbol (symbol: string): Promise<MidaSymbol | undefined> {
+        const C100: number = 100; // Divider for cents
         const plainSymbol: GenericObject | undefined = this.#symbols.get(symbol);
 
         if (!plainSymbol) {
@@ -230,7 +231,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
 
         const completePlainSymbol: GenericObject = await this.#getCompletePlainSymbol(symbol);
-        const lotUnits = Number(completePlainSymbol.lotSize) / 100;
+        const lotUnits = Number(completePlainSymbol.lotSize) / C100;
         normalizedSymbol = new MidaSymbol({
             symbol,
             brokerAccount: this,
@@ -240,8 +241,8 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             type: MidaSymbolCategory.FOREX,
             digits: Number(completePlainSymbol.digits),
             leverage: -1, // TODO: add leverage
-            minLots: Number(completePlainSymbol.minVolume) / 100 / lotUnits,
-            maxLots: Number(completePlainSymbol.maxVolume) / 100 / lotUnits,
+            minLots: Number(completePlainSymbol.minVolume) / lotUnits / C100,
+            maxLots: Number(completePlainSymbol.maxVolume) / lotUnits / C100,
             lotUnits,
         });
 
@@ -626,7 +627,6 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             }
 
             // cTrader Open API doesn't allow using absolute protection on market orders
-            // TODO: find a solution
             if (requestDirectives.orderType !== "MARKET") {
                 if (Number.isFinite(stopLoss)) {
                     requestDirectives.stopLoss = stopLoss;
@@ -1112,6 +1112,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             grossProfit = (openPrice - closePrice) * volume * lotUnits;
         }
 
+        // <rate-for-conversion-to-deposit-asset>
         const quoteAssedId: string = plainSymbol.quoteAssetId.toString();
         const depositAssetId: string = this.#getPlainAssetByName(this.depositCurrencyIso)?.assetId.toString() as string;
         let depositConversionChain: GenericObject[] | undefined = this.#depositConversionChains.get(symbol);
@@ -1140,7 +1141,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
                 movedAssetId = plainLightSymbol.baseAssetId.toString();
             }
         }
+        // </rate-for-converion-to-deposit-asset>
 
+        // Return the gross profit converted to deposit asset
         return grossProfit * rate;
     }
 
@@ -1150,6 +1153,16 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         const totalSwap: number = Number(plainPosition.swap) / 100;
 
         return grossProfit + totalCommission + totalSwap;
+    }
+
+    public getPlainPositionById (id: string): GenericObject | undefined {
+        for (const plainPosition of [ ...this.#plainPositions.values(), ]) {
+            if (plainPosition.positionId === id) {
+                return plainPosition;
+            }
+        }
+
+        return undefined;
     }
 
     async getPlainOrderById (id: string): Promise<GenericObject | undefined> {
