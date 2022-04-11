@@ -3,7 +3,8 @@ import {
     MidaBrokerOrderStatus,
     MidaBrokerPosition,
     MidaBrokerPositionProtection,
-    MidaBrokerPositionProtectionChange, MidaBrokerPositionProtectionChangeStatus,
+    MidaBrokerPositionProtectionChange,
+    MidaBrokerPositionProtectionChangeStatus,
     MidaBrokerPositionStatus,
     MidaUtilities,
 } from "@reiryoku/mida";
@@ -53,17 +54,9 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             return 0;
         }
 
-        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
-        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
-        let usedMargin: number = 0;
+        const plainPosition: GenericObject = this.#cTraderBrokerAccount.getPlainPositionById(this.id) as GenericObject;
 
-        for (const plainOpenPosition of plainOpenPositions) {
-            if (plainOpenPosition.positionId === this.id) {
-                usedMargin += Number(plainOpenPosition.usedMargin);
-            }
-        }
-
-        return usedMargin / 100;
+        return Number(plainPosition.usedMargin) / 100;
     }
 
     public override async getUnrealizedSwap (): Promise<number> {
@@ -71,17 +64,9 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             return 0;
         }
 
-        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
-        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
-        let swap: number = 0;
+        const plainPosition: GenericObject = this.#cTraderBrokerAccount.getPlainPositionById(this.id) as GenericObject;
 
-        for (const plainOpenPosition of plainOpenPositions) {
-            if (plainOpenPosition.positionId === this.id) {
-                swap += Number(plainOpenPosition.swap);
-            }
-        }
-
-        return swap / 100;
+        return Number(plainPosition.swap) / 100;
     }
 
     public override async getUnrealizedCommission (): Promise<number> {
@@ -89,17 +74,9 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             return 0;
         }
 
-        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
-        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
-        let commission: number = 0;
+        const plainPosition: GenericObject = this.#cTraderBrokerAccount.getPlainPositionById(this.id) as GenericObject;
 
-        for (const plainOpenPosition of plainOpenPositions) {
-            if (plainOpenPosition.positionId === this.id) {
-                commission += Number(plainOpenPosition.commission);
-            }
-        }
-
-        return commission / 100;
+        return Number(plainPosition.commission) / 100 * 2;
     }
 
     public override async getUnrealizedGrossProfit (): Promise<number> {
@@ -107,17 +84,9 @@ export class CTraderBrokerPosition extends MidaBrokerPosition {
             return 0;
         }
 
-        const accountOperativityStatus: GenericObject = await this.#sendCommand("ProtoOAReconcileReq");
-        const plainOpenPositions: GenericObject[] = accountOperativityStatus.position;
-        let unrealizedGrossProfit: number = 0;
+        const plainPosition: GenericObject = this.#cTraderBrokerAccount.getPlainPositionById(this.id) as GenericObject;
 
-        for (const plainOpenPosition of plainOpenPositions) {
-            if (plainOpenPosition.positionId === this.id) {
-                unrealizedGrossProfit += await this.#cTraderBrokerAccount.getPlainPositionGrossProfit(plainOpenPosition);
-            }
-        }
-
-        return unrealizedGrossProfit / 100;
+        return this.#cTraderBrokerAccount.getPlainPositionGrossProfit(plainPosition);
     }
 
     public override async changeProtection (protection: MidaBrokerPositionProtection): Promise<MidaBrokerPositionProtectionChange> {

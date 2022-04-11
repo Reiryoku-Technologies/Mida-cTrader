@@ -1,1 +1,1 @@
-This directory contains the plugin main source code.
+The plugin core source code

@@ -7,6 +7,8 @@
 A [Mida](https://github.com/Reiryoku-Technologies/Mida) plugin for using cTrader accounts.
 
 ## Usage
+For the complete documentation refer to [Mida](https://github.com/Reiryoku-Technologies/Mida).
+
 ### Broker account login
 How to login into a cTrader broker account.
 ```javascript
@@ -24,5 +26,10 @@ const myAccount = await MidaBroker.login("cTrader", {
 });
 ```
 
-## Documentation
-For the complete documentation refer to [Mida](https://github.com/Reiryoku-Technologies/Mida).
+### Timeframes
+The supported timeframes<br><br>
+`M1` `M2` `M3` `M4` `M5` `M10` `M15` `M30`<br>
+`H1` `H4` `H12`<br>
+`D1`<br>
+`W1`<br>
+`MN1`<br>
