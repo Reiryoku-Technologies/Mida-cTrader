@@ -12,7 +12,7 @@ export class CTraderPlugin extends MidaPlugin {
             id: "d925e9fe-4352-4391-9a85-f21b2ba6b6d6",
             name: "cTrader",
             description: "A Mida plugin for using cTrader accounts",
-            version: "2.0.1",
+            version: "2.1.0",
         });
     }
 

@@ -1,3 +1,5 @@
+2.1.0 - 11-04-2022
+===================
 ### Features
 * Support all cTrader Open API timeframes [#12](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/12)
 * Use single source of truth to avoid sending multiple requests for getting pending orders, open positions, equity and account related data [#12](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/12)
