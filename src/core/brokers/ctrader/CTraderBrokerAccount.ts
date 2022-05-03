@@ -1,7 +1,7 @@
 import {
     GenericObject,
     MidaAsset,
-    MidaBrokerAccount,
+    MidaBrokerAccount, MidaBrokerAccountAssetStatement,
     MidaBrokerDeal,
     MidaBrokerDealDirection,
     MidaBrokerDealPurpose,
@@ -24,7 +24,7 @@ import {
     MidaSymbolPriceType,
     MidaSymbolTick,
     MidaSymbolTickMovementType,
-    MidaTimeframe,
+    MidaTimeframe, MidaUnsupportedOperationError,
     MidaUtilities,
 } from "@reiryoku/mida";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
@@ -61,8 +61,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         broker,
         creationDate,
         ownerName,
-        depositCurrencyIso,
-        depositCurrencyDigits,
+        depositAsset,
         operativity,
         positionAccounting,
         indicativeLeverage,
@@ -75,8 +74,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             broker,
             creationDate,
             ownerName,
-            depositCurrencyIso,
-            depositCurrencyDigits,
+            depositAsset,
             operativity,
             positionAccounting,
             indicativeLeverage,
@@ -140,6 +138,14 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return Number(accountDescriptor.balance.toString()) / 100;
     }
 
+    public override async getBalanceSheet (): Promise<MidaBrokerAccountAssetStatement[]> {
+        if (await this.getBalance() > 0) {
+            return [ await this.getAssetStatement(this.depositAsset), ];
+        }
+
+        return [];
+    }
+
     public override async getUsedMargin (): Promise<number> {
         let usedMargin: number = 0;
 
@@ -163,16 +169,12 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return equity;
     }
 
-    public override async getAssets (): Promise<MidaAsset[]> {
-        return [ ...this.#normalizedAssets.values(), ];
+    public override async getAssets (): Promise<string[]> {
+        return [ ...this.#normalizedAssets.values(), ].map((asset: MidaAsset): string => asset.name);
     }
 
     public override async isSymbolMarketOpen (symbol: string): Promise<boolean> {
-        throw new Error("Unsupported operation");
-    }
-
-    public override async logout (): Promise<void> {
-        await this.#connection.close();
+        throw new MidaUnsupportedOperationError();
     }
 
     public override async getSymbolPeriods (symbol: string, timeframe: number): Promise<MidaSymbolPeriod[]> {
@@ -184,7 +186,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             toTimestamp: Date.now(),
             period: normalizeTimeframe(timeframe),
             symbolId,
-            count: 1000,
+            count: 500,
         })).trendbar;
 
         for (const plainPeriod of plainPeriods) {
@@ -236,11 +238,11 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             symbol,
             brokerAccount: this,
             description: plainSymbol.description,
-            baseAsset: this.getAssetById(plainSymbol.baseAssetId) as MidaAsset,
-            quoteAsset: this.getAssetById(plainSymbol.quoteAssetId) as MidaAsset,
+            baseAsset: this.getAssetById(plainSymbol.baseAssetId)?.name as string,
+            quoteAsset: this.getAssetById(plainSymbol.quoteAssetId)?.name as string,
             type: MidaSymbolCategory.FOREX,
             digits: Number(completePlainSymbol.digits),
-            leverage: -1, // TODO: add leverage
+            leverage: -1, // TODO => Add leverage
             minLots: Number(completePlainSymbol.minVolume) / lotUnits / C100,
             maxLots: Number(completePlainSymbol.maxVolume) / lotUnits / C100,
             lotUnits,
@@ -249,6 +251,34 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         this.#normalizedSymbols.set(symbol, normalizedSymbol);
 
         return normalizedSymbol;
+    }
+
+    public override async getAsset (asset: string): Promise<MidaAsset | undefined> {
+        return this.#normalizedAssets.get(asset);
+    }
+
+    public override async getAssetStatement (asset: string): Promise<MidaBrokerAccountAssetStatement> {
+        if (asset === this.depositAsset) {
+            return {
+                brokerAccount: this,
+                date: new MidaDate(),
+                asset,
+                freeVolume: await this.getFreeMargin(),
+                lockedVolume: await this.getUsedMargin(),
+            };
+        }
+
+        return {
+            brokerAccount: this,
+            date: new MidaDate(),
+            asset,
+            freeVolume: 0,
+            lockedVolume: 0,
+        };
+    }
+
+    public override async getAssetDepositAddress (asset: string): Promise<string> {
+        throw new MidaUnsupportedOperationError();
     }
 
     public override async watchSymbolTicks (symbol: string): Promise<void> {
@@ -270,9 +300,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
     }
 
-    public override async getOrders (fromTimestamp?: number, toTimestamp?: number): Promise<MidaBrokerOrder[]> {
-        const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24;
-        const normalizedToTimestamp: number = toTimestamp ?? Date.now();
+    public override async getOrders (symbol: string): Promise<MidaBrokerOrder[]> {
+        const normalizedFromTimestamp: number = Date.now() - 1000 * 60 * 60 * 24;
+        const normalizedToTimestamp: number = Date.now();
         const ordersPromises: Promise<MidaBrokerOrder>[] = [];
         const plainOrders: GenericObject[] = await this.#getPlainOrders(normalizedFromTimestamp, normalizedToTimestamp);
 
@@ -285,7 +315,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             }
         }
 
-        return Promise.all(ordersPromises);
+        return (await Promise.all(ordersPromises)).filter((order: MidaBrokerOrder): boolean => order.symbol === symbol);
     }
 
     public override async getPendingOrders (): Promise<MidaBrokerOrder[]> {
@@ -300,9 +330,9 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return Promise.all(pendingOrdersPromises);
     }
 
-    public override async getDeals (fromTimestamp?: number, toTimestamp?: number): Promise<MidaBrokerDeal[]> {
-        const normalizedFromTimestamp: number = fromTimestamp ?? Date.now() - 1000 * 60 * 60 * 24;
-        const normalizedToTimestamp: number = toTimestamp ?? Date.now();
+    public override async getDeals (symbol: string): Promise<MidaBrokerDeal[]> {
+        const normalizedFromTimestamp: number = Date.now() - 1000 * 60 * 60 * 24;
+        const normalizedToTimestamp: number = Date.now();
         const dealsPromises: Promise<MidaBrokerDeal>[] = [];
 
         await this.#preloadDeals(normalizedFromTimestamp, normalizedToTimestamp);
@@ -313,10 +343,10 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             }
         }
 
-        return Promise.all(dealsPromises);
+        return (await Promise.all(dealsPromises)).filter((deal: MidaBrokerDeal): boolean => deal.symbol === symbol);
     }
 
-    public override async getSymbolLastTick (symbol: string): Promise<MidaSymbolTick> {
+    async #getSymbolLastTick (symbol: string): Promise<MidaSymbolTick> {
         // Check if symbol ticks are already being listened
         if (this.#lastTicks.has(symbol)) {
             // Return the lastest tick
@@ -349,7 +379,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return lastTickPromise;
     }
 
-    public override async getOrderById (id: string): Promise<CTraderBrokerOrder | undefined> {
+    async #getOrderById (id: string): Promise<CTraderBrokerOrder | undefined> {
         const plainOrder: GenericObject | undefined = await this.getPlainOrderById(id);
 
         if (!plainOrder) {
@@ -359,7 +389,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return this.normalizePlainOrder(plainOrder);
     }
 
-    public override async getDealById (id: string): Promise<CTraderBrokerDeal | undefined> {
+    async #getDealById (id: string): Promise<CTraderBrokerDeal | undefined> {
         const plainDeal: GenericObject | undefined = await this.getPlainDealById(id);
 
         if (!plainDeal) {
@@ -367,10 +397,6 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
 
         return this.normalizePlainDeal(plainDeal);
-    }
-
-    public override async getPositions (fromTimestamp: number, toTimestamp: number): Promise<MidaBrokerPosition[]> {
-        return [];
     }
 
     public override async getOpenPositions (): Promise<MidaBrokerPosition[]> {
@@ -486,7 +512,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         return Promise.all(orderDealsPromises);
     }
 
-    public override async getPositionById (id: string): Promise<MidaBrokerPosition | undefined> {
+    public async getPositionById (id: string): Promise<MidaBrokerPosition | undefined> {
         let normalizedPosition: CTraderBrokerPosition | undefined = this.#normalizedPositions.get(id);
 
         if (normalizedPosition) {
@@ -526,11 +552,15 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
     }
 
     public override async getSymbolBid (symbol: string): Promise<number> {
-        return (await this.getSymbolLastTick(symbol)).bid;
+        return (await this.#getSymbolLastTick(symbol)).bid;
     }
 
     public override async getSymbolAsk (symbol: string): Promise<number> {
-        return (await this.getSymbolLastTick(symbol)).ask;
+        return (await this.#getSymbolLastTick(symbol)).ask;
+    }
+
+    public override async getSymbolAveragePrice (symbol: string): Promise<number> {
+        return (await this.getSymbolBid(symbol) + await this.getSymbolAsk(symbol)) / 2;
     }
 
     // eslint-disable-next-line max-lines-per-function, complexity
@@ -545,7 +575,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         let stopPrice: number | undefined = undefined;
         let requestDirectives: GenericObject = {};
 
-        // Check if order is related to existing position
+        // Check if order is related to an existing position
         if (positionId && !directives.symbol) {
             existingPosition = await this.getPositionById(positionId) as CTraderBrokerPosition;
             symbol = existingPosition.symbol;
@@ -781,11 +811,10 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
             requestDate,
             executionDate,
             rejectionDate,
-            closedByDeals: [], // TODO: TODO
-            closedDeals: [], // TODO: TODO
             executionPrice: Number.isFinite(executionPrice) ? executionPrice : undefined,
             grossProfit: Number.isFinite(grossProfit) ? grossProfit : undefined,
             commission: Number.isFinite(commission) ? commission : undefined,
+            commissionAsset: this.depositAsset,
             swap: Number.isFinite(swap) ? swap : undefined,
             rejectionType,
         });
@@ -793,7 +822,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         this.#normalizedDeals.set(normalizedDeal.id, normalizedDeal);
 
         // eslint-disable-next-line max-len
-        const [ order, position, ] = await Promise.all([ this.getOrderById(orderId) as Promise<CTraderBrokerOrder>, this.getPositionById(positionId) as Promise<CTraderBrokerPosition>, ]);
+        const [ order, position, ] = await Promise.all([ this.#getOrderById(orderId) as Promise<CTraderBrokerOrder>, this.getPositionById(positionId) as Promise<CTraderBrokerPosition>, ]);
 
         return normalizedDeal;
     }
@@ -1081,7 +1110,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         const lotUnits: number = Number(completePlainSymbol.lotSize) / 100;
         const volume: number = Number(plainPosition.tradeData.volume) / 100 / lotUnits;
         const openPrice: number = Number(plainPosition.price);
-        const lastSymbolTick: MidaSymbolTick = await this.getSymbolLastTick(symbol);
+        const lastSymbolTick: MidaSymbolTick = await this.#getSymbolLastTick(symbol);
         let direction: MidaBrokerPositionDirection;
         let closePrice: number;
 
@@ -1114,7 +1143,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
 
         // <rate-for-conversion-to-deposit-asset>
         const quoteAssedId: string = plainSymbol.quoteAssetId.toString();
-        const depositAssetId: string = this.#getPlainAssetByName(this.depositCurrencyIso)?.assetId.toString() as string;
+        const depositAssetId: string = this.#getPlainAssetByName(this.depositAsset)?.assetId.toString() as string;
         let depositConversionChain: GenericObject[] | undefined = this.#depositConversionChains.get(symbol);
         let rate: number = 1;
         let movedAssetId: string = quoteAssedId;
@@ -1129,7 +1158,7 @@ export class CTraderBrokerAccount extends MidaBrokerAccount {
         }
 
         for (const plainLightSymbol of depositConversionChain) {
-            const lastLightSymbolTick: MidaSymbolTick = await this.getSymbolLastTick(plainLightSymbol.symbolName);
+            const lastLightSymbolTick: MidaSymbolTick = await this.#getSymbolLastTick(plainLightSymbol.symbolName);
             const supposedClosePrice: number = lastLightSymbolTick.ask;
 
             if (plainLightSymbol.baseAssetId.toString() === movedAssetId) {

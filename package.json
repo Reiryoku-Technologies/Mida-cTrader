@@ -36,7 +36,7 @@
         "@reiryoku/ctrader-layer": "^2.2.0"
     },
     "devDependencies": {
-        "@reiryoku/mida": "^5.0.1",
+        "@reiryoku/mida": "file:../Mida",
         "@reiryoku/eslint-config-reiryoku": "^1.0.0",
         "@types/jest": "^26.0.20",
         "@types/node": "^12.7.2",
@@ -50,6 +50,6 @@
         "typescript-transform-paths": "^2.2.4"
     },
     "peerDependencies": {
-        "@reiryoku/mida": "^5.0.1"
+        "@reiryoku/mida": "^6.0.0"
     }
 }

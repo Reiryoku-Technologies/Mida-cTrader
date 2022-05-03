@@ -33,10 +33,6 @@ describe("CTraderBrokerAccount", () => {
         brokerAccount = await CTraderPlugin.broker.login(credentials);
     });
 
-    afterAll((async () => {
-        await brokerAccount.logout();
-    }));
-
     beforeEach(async () => {
         // Used to avoid rate limiting on the API usage
         await MidaUtilities.wait(5000);

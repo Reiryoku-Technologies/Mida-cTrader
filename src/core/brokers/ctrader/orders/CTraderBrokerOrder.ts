@@ -138,7 +138,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
                 this.#removeEventsListeners();
                 this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
 
-                this.position = this.position ?? await this.brokerAccount.getPositionById(positionId);
+                this.position = this.position ?? await this.#cTraderBrokerAccount.getPositionById(positionId);
 
                 this.onStatusChange(MidaBrokerOrderStatus.EXECUTED);
 
