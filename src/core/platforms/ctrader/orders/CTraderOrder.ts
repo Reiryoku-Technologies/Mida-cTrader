@@ -1,15 +1,15 @@
 import {
     GenericObject,
-    MidaBrokerOrder,
-    MidaBrokerOrderRejectionType,
-    MidaBrokerOrderStatus,
+    MidaOrder,
+    MidaOrderRejection,
+    MidaOrderStatus,
     MidaDate,
 } from "@reiryoku/mida";
-import { CTraderBrokerOrderParameters } from "#brokers/ctrader/orders/CTraderBrokerOrderParameters";
+import { CTraderOrderParameters } from "#platforms/ctrader/orders/CTraderOrderParameters";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
-import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
+import { CTraderTradingAccount } from "#platforms/ctrader/CTraderTradingAccount";
 
-export class CTraderBrokerOrder extends MidaBrokerOrder {
+export class CTraderOrder extends MidaOrder {
     // The uuid associated to the order request
     readonly #uuid: string;
     readonly #connection: CTraderConnection;
@@ -20,7 +20,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
     public constructor ({
         id,
-        brokerAccount,
+        tradingAccount,
         symbol,
         requestedVolume,
         direction,
@@ -31,16 +31,15 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
         creationDate,
         lastUpdateDate,
         timeInForce,
-        deals,
-        position,
-        rejectionType,
+        trades,
+        rejection,
         isStopOut,
         uuid,
         connection,
-    }: CTraderBrokerOrderParameters) {
+    }: CTraderOrderParameters) {
         super({
             id,
-            brokerAccount,
+            tradingAccount,
             symbol,
             requestedVolume,
             direction,
@@ -51,9 +50,8 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             creationDate,
             lastUpdateDate,
             timeInForce,
-            deals,
-            position,
-            rejectionType,
+            trades,
+            rejection,
             isStopOut,
         });
 
@@ -66,25 +64,25 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
         // Listen events only if the order is not in a final state
         if (
-            status !== MidaBrokerOrderStatus.CANCELLED &&
-            status !== MidaBrokerOrderStatus.REJECTED &&
-            status !== MidaBrokerOrderStatus.EXPIRED &&
-            status !== MidaBrokerOrderStatus.EXECUTED
+            status !== MidaOrderStatus.CANCELLED &&
+            status !== MidaOrderStatus.REJECTED &&
+            status !== MidaOrderStatus.EXPIRED &&
+            status !== MidaOrderStatus.EXECUTED
         ) {
             this.#configureListeners();
         }
     }
 
-    get #cTraderBrokerAccount (): CTraderBrokerAccount {
-        return this.brokerAccount as CTraderBrokerAccount;
+    get #cTraderTradingAccount (): CTraderTradingAccount {
+        return this.tradingAccount as CTraderTradingAccount;
     }
 
     get #cTraderBrokerAccountId (): string {
-        return this.#cTraderBrokerAccount.cTraderBrokerAccountId;
+        return this.#cTraderTradingAccount.cTraderBrokerAccountId;
     }
 
     public override async cancel (): Promise<void> {
-        if (this.status !== MidaBrokerOrderStatus.PENDING) {
+        if (this.status !== MidaOrderStatus.PENDING) {
             return;
         }
 
@@ -125,10 +123,10 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
 
         switch (descriptor.executionType) {
             case "ORDER_ACCEPTED": {
-                this.onStatusChange(MidaBrokerOrderStatus.ACCEPTED);
+                this.onStatusChange(MidaOrderStatus.ACCEPTED);
 
                 if (order.orderType.toUpperCase() !== "MARKET") {
-                    this.onStatusChange(MidaBrokerOrderStatus.PENDING);
+                    this.onStatusChange(MidaOrderStatus.PENDING);
                 }
 
                 break;
@@ -136,23 +134,21 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             case "ORDER_PARTIAL_FILL":
             case "ORDER_FILLED": {
                 this.#removeEventsListeners();
-                this.onDeal(await this.#cTraderBrokerAccount.normalizePlainDeal(descriptor.deal));
+                this.onTrade(await this.#cTraderTradingAccount.normalizePlainDeal(descriptor.deal));
 
-                this.position = this.position ?? await this.#cTraderBrokerAccount.getPositionById(positionId);
-
-                this.onStatusChange(MidaBrokerOrderStatus.EXECUTED);
+                this.onStatusChange(MidaOrderStatus.EXECUTED);
 
                 break;
             }
             case "ORDER_CANCELLED": {
                 this.#removeEventsListeners();
-                this.onStatusChange(MidaBrokerOrderStatus.CANCELLED);
+                this.onStatusChange(MidaOrderStatus.CANCELLED);
 
                 break;
             }
             case "ORDER_EXPIRED": {
                 this.#removeEventsListeners();
-                this.onStatusChange(MidaBrokerOrderStatus.EXPIRED);
+                this.onStatusChange(MidaOrderStatus.EXPIRED);
 
                 break;
             }
@@ -180,28 +176,28 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
         switch (descriptor.errorCode) {
             case "MARKET_CLOSED":
             case "SYMBOL_HAS_HOLIDAY": {
-                this.rejectionType = MidaBrokerOrderRejectionType.MARKET_CLOSED;
+                this.rejection = MidaOrderRejection.MARKET_CLOSED;
 
                 break;
             }
             case "SYMBOL_NOT_FOUND":
             case "UNKNOWN_SYMBOL": {
-                this.rejectionType = MidaBrokerOrderRejectionType.SYMBOL_NOT_FOUND;
+                this.rejection = MidaOrderRejection.SYMBOL_NOT_FOUND;
 
                 break;
             }
             case "TRADING_DISABLED": {
-                this.rejectionType = MidaBrokerOrderRejectionType.SYMBOL_TRADING_DISABLED;
+                this.rejection = MidaOrderRejection.SYMBOL_TRADING_DISABLED;
 
                 break;
             }
             case "NOT_ENOUGH_MONEY": {
-                this.rejectionType = MidaBrokerOrderRejectionType.NOT_ENOUGH_MONEY;
+                this.rejection = MidaOrderRejection.NOT_ENOUGH_MONEY;
 
                 break;
             }
             case "TRADING_BAD_VOLUME": {
-                this.rejectionType = MidaBrokerOrderRejectionType.INVALID_VOLUME;
+                this.rejection = MidaOrderRejection.INVALID_VOLUME;
 
                 break;
             }
@@ -211,7 +207,7 @@ export class CTraderBrokerOrder extends MidaBrokerOrder {
             }
         }
 
-        this.onStatusChange(MidaBrokerOrderStatus.REJECTED);
+        this.onStatusChange(MidaOrderStatus.REJECTED);
     }
 
     #configureListeners (): void {

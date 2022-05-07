@@ -1,10 +1,10 @@
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
-import { CTraderApplicationParameters } from "#brokers/ctrader/CTraderApplicationParameters";
-import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
+import { CTraderApplicationParameters } from "#platforms/ctrader/CTraderApplicationParameters";
+import { CTraderTradingAccount } from "#platforms/ctrader/CTraderTradingAccount";
 import {
     GenericObject,
-    MidaBrokerAccountOperativity,
-    MidaBrokerAccountPositionAccounting,
+    MidaTradingAccountOperativity,
+    MidaTradingAccountPositionAccounting,
     MidaDate,
 } from "@reiryoku/mida";
 import { CTraderPlugin } from "#CTraderPlugin";
@@ -68,7 +68,7 @@ export class CTraderApplication {
         this.#isAuthenticated = true;
     }
 
-    public async loginBrokerAccount (accessToken: string, cTraderBrokerAccountId: string): Promise<CTraderBrokerAccount> {
+    public async loginBrokerAccount (accessToken: string, cTraderBrokerAccountId: string): Promise<CTraderTradingAccount> {
         const accounts = (await this.#demoConnection.sendCommand("ProtoOAGetAccountListByAccessTokenReq", { accessToken, })).ctidTraderAccount;
         const account = accounts.find((account: GenericObject) => account.ctidTraderAccountId.toString() === cTraderBrokerAccountId);
 
@@ -87,13 +87,13 @@ export class CTraderApplication {
         const accountDescriptor: GenericObject = (await connection.sendCommand("ProtoOATraderReq", {
             ctidTraderAccountId: cTraderBrokerAccountId,
         })).trader;
-        const positionAccounting: MidaBrokerAccountPositionAccounting = ((): MidaBrokerAccountPositionAccounting => {
+        const positionAccounting: MidaTradingAccountPositionAccounting = ((): MidaTradingAccountPositionAccounting => {
             switch (accountDescriptor.accountType.toUpperCase()) {
                 case "HEDGED": {
-                    return MidaBrokerAccountPositionAccounting.HEDGED;
+                    return MidaTradingAccountPositionAccounting.HEDGED;
                 }
                 case "NETTED": {
-                    return MidaBrokerAccountPositionAccounting.NETTED;
+                    return MidaTradingAccountPositionAccounting.NETTED;
                 }
                 default: {
                     throw new Error();
@@ -106,17 +106,17 @@ export class CTraderApplication {
         // eslint-disable-next-line max-len
         const depositAsset: GenericObject = assets.find((asset: GenericObject) => asset.assetId.toString() === accountDescriptor.depositAssetId.toString()) as GenericObject;
 
-        return new CTraderBrokerAccount({
+        return new CTraderTradingAccount({
             id: account.traderLogin.toString(),
-            broker: CTraderPlugin.broker,
+            platform: CTraderPlugin.broker,
             creationDate: new MidaDate(Number(accountDescriptor.registrationTimestamp)),
             ownerName: "",
-            depositAsset: depositAsset.displayName.toUpperCase(),
-            operativity: isLive ? MidaBrokerAccountOperativity.REAL : MidaBrokerAccountOperativity.DEMO,
+            primaryAsset: depositAsset.displayName.toUpperCase(),
+            operativity: isLive ? MidaTradingAccountOperativity.REAL : MidaTradingAccountOperativity.DEMO,
             positionAccounting,
             indicativeLeverage: Number(accountDescriptor.leverageInCents) / 100,
             connection,
-            cTraderBrokerAccountId,
+            brokerAccountId: cTraderBrokerAccountId,
             brokerName: accountDescriptor.brokerName,
         });
     }
