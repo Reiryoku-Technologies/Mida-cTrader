@@ -1,10 +1,10 @@
-import { CTraderBrokerAccount } from "#brokers/ctrader/CTraderBrokerAccount";
+import { CTraderTradingAccount } from "#platforms/ctrader/CTraderTradingAccount";
 import { CTraderPlugin } from "#CTraderPlugin";
 import {
-    MidaBrokerOrderDirection,
-    MidaBrokerPosition,
-    MidaBrokerPositionDirection,
-    MidaBrokerPositionStatus,
+    MidaOrderDirection, MidaOrderStatus,
+    MidaPosition,
+    MidaPositionDirection,
+    MidaPositionStatus,
     MidaUtilities,
 } from "@reiryoku/mida";
 import { expect } from "@jest/globals";
@@ -17,7 +17,7 @@ describe("CTraderBrokerAccount", () => {
         accessToken: "",
         cTraderBrokerAccountId: "",
     };
-    let brokerAccount: CTraderBrokerAccount;
+    let brokerAccount: CTraderTradingAccount;
 
     if (!credentials.clientId || !credentials.clientSecret || !credentials.accessToken || !credentials.cTraderBrokerAccountId) {
         describe("no credentials", () => {
@@ -30,7 +30,7 @@ describe("CTraderBrokerAccount", () => {
     }
 
     beforeAll(async () => {
-        brokerAccount = await CTraderPlugin.broker.login(credentials);
+        brokerAccount = await CTraderPlugin.platform.login(credentials);
     });
 
     beforeEach(async () => {
@@ -51,65 +51,40 @@ describe("CTraderBrokerAccount", () => {
         it("correctly places market order", async () => {
             const symbol = "XAUUSD";
             const volume = MidaUtilities.generateInRandomInteger(1, 2);
-            const direction = MidaBrokerOrderDirection.BUY;
+            const direction = MidaOrderDirection.BUY;
             const order = await brokerAccount.placeOrder({
                 symbol,
                 volume,
                 direction,
             });
-            const position = order.position as MidaBrokerPosition;
 
-            expect(position).toBeInstanceOf(MidaBrokerPosition);
-            expect(position.symbol).toBe(symbol);
-            expect(position.volume).toBe(volume);
-            expect(position.status).toBe(MidaBrokerPositionStatus.OPEN);
-            expect(position.direction).toBe(MidaBrokerPositionDirection.LONG);
+            expect(order.status).toBe(MidaOrderStatus.EXECUTED);
         });
 
         it("correctly places market order with take profit", async () => {
             const symbol = "XAUUSD";
             const volume = MidaUtilities.generateInRandomInteger(1, 2);
-            const direction = MidaBrokerOrderDirection.BUY;
-            const takeProfit: number = 5000;
+            const direction = MidaOrderDirection.BUY;
             const order = await brokerAccount.placeOrder({
                 symbol,
                 volume,
                 direction,
             });
-            const position = order.position as MidaBrokerPosition;
 
-            expect(position).toBeInstanceOf(MidaBrokerPosition);
-            expect(position.symbol).toBe(symbol);
-            expect(position.volume).toBe(volume);
-            expect(position.status).toBe(MidaBrokerPositionStatus.OPEN);
-            expect(position.direction).toBe(MidaBrokerPositionDirection.LONG);
-
-            await position.changeProtection({ takeProfit, });
-
-            expect(position.takeProfit).toBe(takeProfit);
+            expect(order.status).toBe(MidaOrderStatus.EXECUTED);
         });
 
         it("correctly places market order with stop loss", async () => {
             const symbol = "XAUUSD";
             const volume = MidaUtilities.generateInRandomInteger(1, 2);
-            const direction = MidaBrokerOrderDirection.BUY;
-            const stopLoss: number = 1000;
+            const direction = MidaOrderDirection.BUY;
             const order = await brokerAccount.placeOrder({
                 symbol,
                 volume,
                 direction,
             });
-            const position = order.position as MidaBrokerPosition;
 
-            expect(position).toBeInstanceOf(MidaBrokerPosition);
-            expect(position.symbol).toBe(symbol);
-            expect(position.volume).toBe(volume);
-            expect(position.status).toBe(MidaBrokerPositionStatus.OPEN);
-            expect(position.direction).toBe(MidaBrokerPositionDirection.LONG);
-
-            await position.changeProtection({ stopLoss, });
-
-            expect(position.stopLoss).toBe(stopLoss);
+            expect(order.status).toBe(MidaOrderStatus.EXECUTED);
         });
     });
 });

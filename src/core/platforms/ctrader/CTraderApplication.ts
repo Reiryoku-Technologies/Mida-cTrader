@@ -108,7 +108,7 @@ export class CTraderApplication {
 
         return new CTraderTradingAccount({
             id: account.traderLogin.toString(),
-            platform: CTraderPlugin.broker,
+            platform: CTraderPlugin.platform,
             creationDate: new MidaDate(Number(accountDescriptor.registrationTimestamp)),
             ownerName: "",
             primaryAsset: depositAsset.displayName.toUpperCase(),

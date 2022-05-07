@@ -47,12 +47,12 @@ export class CTraderPosition extends MidaPosition {
         this.#configureListeners();
     }
 
-    get #cTraderBrokerAccount (): CTraderTradingAccount {
+    get #cTraderTradingAccount (): CTraderTradingAccount {
         return this.tradingAccount as CTraderTradingAccount;
     }
 
-    get #cTraderBrokerAccountId (): string {
-        return this.#cTraderBrokerAccount.cTraderBrokerAccountId;
+    get #brokerAccountId (): string {
+        return this.#cTraderTradingAccount.brokerAccountId;
     }
 
     public override async getUsedMargin (): Promise<number> {
@@ -60,7 +60,7 @@ export class CTraderPosition extends MidaPosition {
             return 0;
         }
 
-        const plainPosition: GenericObject = this.#cTraderBrokerAccount.getPlainPositionById(this.id) as GenericObject;
+        const plainPosition: GenericObject = this.#cTraderTradingAccount.getPlainPositionById(this.id) as GenericObject;
 
         return Number(plainPosition.usedMargin) / 100;
     }
@@ -86,7 +86,7 @@ export class CTraderPosition extends MidaPosition {
             return 0;
         }
 
-        const plainPosition: GenericObject = this.#cTraderBrokerAccount.getPlainPositionById(this.id) as GenericObject;
+        const plainPosition: GenericObject = this.#cTraderTradingAccount.getPlainPositionById(this.id) as GenericObject;
 
         return Number(plainPosition.swap) / 100;
     }
@@ -96,7 +96,7 @@ export class CTraderPosition extends MidaPosition {
             return 0;
         }
 
-        const plainPosition: GenericObject = this.#cTraderBrokerAccount.getPlainPositionById(this.id) as GenericObject;
+        const plainPosition: GenericObject = this.#cTraderTradingAccount.getPlainPositionById(this.id) as GenericObject;
 
         return Number(plainPosition.commission) / 100 * 2;
     }
@@ -106,9 +106,9 @@ export class CTraderPosition extends MidaPosition {
             return 0;
         }
 
-        const plainPosition: GenericObject = this.#cTraderBrokerAccount.getPlainPositionById(this.id) as GenericObject;
+        const plainPosition: GenericObject = this.#cTraderTradingAccount.getPlainPositionById(this.id) as GenericObject;
 
-        return this.#cTraderBrokerAccount.getPlainPositionGrossProfit(plainPosition);
+        return this.#cTraderTradingAccount.getPlainPositionGrossProfit(plainPosition);
     }
 
     public override async changeProtection (protection: MidaProtection): Promise<MidaProtectionChange> {
@@ -148,7 +148,7 @@ export class CTraderPosition extends MidaPosition {
 
     #configureListeners (): void {
         this.#updateEventUuid = this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
-            if (descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId) {
+            if (descriptor.ctidTraderAccountId.toString() === this.#brokerAccountId) {
                 this.#onUpdate(descriptor); // Not using await is intended
             }
         });
@@ -164,7 +164,7 @@ export class CTraderPosition extends MidaPosition {
 
     async #sendCommand (payloadType: string, parameters?: GenericObject, messageId?: string): Promise<GenericObject> {
         return this.#connection.sendCommand(payloadType, {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+            ctidTraderAccountId: this.#brokerAccountId,
             ...parameters ?? {},
         }, messageId);
     }

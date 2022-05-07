@@ -1,10 +1,4 @@
-import {
-    GenericObject,
-    MidaOrder,
-    MidaOrderRejection,
-    MidaOrderStatus,
-    MidaDate,
-} from "@reiryoku/mida";
+import { GenericObject, MidaDate, MidaOrder, MidaOrderRejection, MidaOrderStatus, } from "@reiryoku/mida";
 import { CTraderOrderParameters } from "#platforms/ctrader/orders/CTraderOrderParameters";
 import { CTraderConnection } from "@reiryoku/ctrader-layer";
 import { CTraderTradingAccount } from "#platforms/ctrader/CTraderTradingAccount";
@@ -77,8 +71,8 @@ export class CTraderOrder extends MidaOrder {
         return this.tradingAccount as CTraderTradingAccount;
     }
 
-    get #cTraderBrokerAccountId (): string {
-        return this.#cTraderTradingAccount.cTraderBrokerAccountId;
+    get #brokerAccountId (): string {
+        return this.#cTraderTradingAccount.brokerAccountId;
     }
 
     public override async cancel (): Promise<void> {
@@ -87,7 +81,7 @@ export class CTraderOrder extends MidaOrder {
         }
 
         this.#connection.sendCommand("ProtoOACancelOrderReq", {
-            ctidTraderAccountId: this.#cTraderBrokerAccountId,
+            ctidTraderAccountId: this.#brokerAccountId,
             orderId: this.id,
         });
     }
@@ -134,7 +128,7 @@ export class CTraderOrder extends MidaOrder {
             case "ORDER_PARTIAL_FILL":
             case "ORDER_FILLED": {
                 this.#removeEventsListeners();
-                this.onTrade(await this.#cTraderTradingAccount.normalizePlainDeal(descriptor.deal));
+                this.onTrade(await this.#cTraderTradingAccount.toMidaTrade(descriptor.deal));
 
                 this.onStatusChange(MidaOrderStatus.EXECUTED);
 
@@ -202,8 +196,7 @@ export class CTraderOrder extends MidaOrder {
                 break;
             }
             default: {
-                // @ts-ignore
-                this.rejectionType = `UNKNOWN REJECTION TYPE | ${descriptor.errorCode}`;
+                this.rejection = MidaOrderRejection.UNKNOWN;
             }
         }
 
@@ -216,7 +209,7 @@ export class CTraderOrder extends MidaOrder {
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
             if (
-                descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId &&
+                descriptor.ctidTraderAccountId.toString() === this.#brokerAccountId &&
                 (orderId && orderId === this.id || descriptor.clientMsgId === this.#uuid)
             ) {
                 this.#onUpdate(descriptor); // Not using await is intended
@@ -229,7 +222,7 @@ export class CTraderOrder extends MidaOrder {
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
             if (
-                descriptor.ctidTraderAccountId.toString() === this.#cTraderBrokerAccountId &&
+                descriptor.ctidTraderAccountId.toString() === this.#brokerAccountId &&
                 (orderId && orderId === this.id || descriptor.clientMsgId === this.#uuid)
             ) {
                 this.#onReject(descriptor);
