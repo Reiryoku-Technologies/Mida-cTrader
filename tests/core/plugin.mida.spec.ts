@@ -1,4 +1,4 @@
-import { MidaPlugin } from "@reiryoku/mida";
+import { MidaPlugin, } from "@reiryoku/mida";
 
 describe("plugin.mida.ts", (): void => {
     describe("exports", (): void => {

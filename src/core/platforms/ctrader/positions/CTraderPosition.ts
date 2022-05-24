@@ -10,16 +10,16 @@ import {
     MidaProtectionChangeStatus,
     MidaUtilities,
 } from "@reiryoku/mida";
-import { CTraderPositionParameters } from "#platforms/ctrader/positions/CTraderPositionParameters";
-import { CTraderConnection } from "@reiryoku/ctrader-layer";
-import { CTraderTradingAccount } from "#platforms/ctrader/CTraderTradingAccount";
+import { CTraderPositionParameters, } from "#platforms/ctrader/positions/CTraderPositionParameters";
+import { CTraderConnection, } from "@reiryoku/ctrader-layer";
+import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
 
 export class CTraderPosition extends MidaPosition {
     readonly #connection: CTraderConnection;
     readonly #updateEventQueue: GenericObject[];
     #updateEventIsLocked: boolean;
     #updateEventUuid?: string;
-    readonly #protectionChangePendingRequests: Map<string, [ MidaProtection, Function, ]>;
+    readonly #protectionChangeRequests: Map<string, [ MidaProtection, Function, ]>;
 
     public constructor ({
         id,
@@ -43,7 +43,7 @@ export class CTraderPosition extends MidaPosition {
         this.#updateEventQueue = [];
         this.#updateEventIsLocked = false;
         this.#updateEventUuid = undefined;
-        this.#protectionChangePendingRequests = new Map();
+        this.#protectionChangeRequests = new Map();
 
         this.#configureListeners();
     }
@@ -134,7 +134,7 @@ export class CTraderPosition extends MidaPosition {
 
         const uuid: string = MidaUtilities.uuid();
         const protectionChangePromise: Promise<MidaProtectionChange> = new Promise((resolver: Function) => {
-            this.#protectionChangePendingRequests.set(uuid, [ protection, resolver, ]);
+            this.#protectionChangeRequests.set(uuid, [ protection, resolver, ]);
         });
 
         this.#sendCommand("ProtoOAAmendPositionSLTPReq", requestDescriptor, uuid);
@@ -169,7 +169,7 @@ export class CTraderPosition extends MidaPosition {
                     if (plainOrder.orderType === "STOP_LOSS_TAKE_PROFIT") {
                         this.onProtectionChange(this.#cTraderTradingAccount.normalizeProtection(descriptor.position));
 
-                        const protectionChangeRequest: any[] | undefined = this.#protectionChangePendingRequests.get(messageId);
+                        const protectionChangeRequest: any[] | undefined = this.#protectionChangeRequests.get(messageId);
 
                         if (protectionChangeRequest) {
                             protectionChangeRequest[1]({

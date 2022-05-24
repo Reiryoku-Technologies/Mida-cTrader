@@ -1,7 +1,7 @@
-import { MidaTradingPlatform } from "@reiryoku/mida";
-import { CTraderTradingAccount } from "#platforms/ctrader/CTraderTradingAccount";
-import { CTraderLoginParameters } from "#platforms/ctrader/CTraderLoginParameters";
-import { CTraderApplication } from "#platforms/ctrader/CTraderApplication";
+import { MidaTradingPlatform, } from "@reiryoku/mida";
+import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
+import { CTraderLoginParameters, } from "#platforms/ctrader/CTraderLoginParameters";
+import { CTraderApplication, } from "#platforms/ctrader/CTraderApplication";
 
 export class CTrader extends MidaTradingPlatform {
     public constructor () {

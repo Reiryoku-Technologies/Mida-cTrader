@@ -1,7 +1,9 @@
-import { GenericObject, MidaDate, MidaOrder, MidaOrderRejection, MidaOrderStatus, } from "@reiryoku/mida";
-import { CTraderOrderParameters } from "#platforms/ctrader/orders/CTraderOrderParameters";
-import { CTraderConnection } from "@reiryoku/ctrader-layer";
-import { CTraderTradingAccount } from "#platforms/ctrader/CTraderTradingAccount";
+import {
+    GenericObject, MidaDate, MidaOrder, MidaOrderRejection, MidaOrderStatus,
+} from "@reiryoku/mida";
+import { CTraderOrderParameters, } from "#platforms/ctrader/orders/CTraderOrderParameters";
+import { CTraderConnection, } from "@reiryoku/ctrader-layer";
+import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
 
 export class CTraderOrder extends MidaOrder {
     // The uuid associated to the order request

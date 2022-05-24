@@ -28,11 +28,11 @@ import {
     MidaUnsupportedOperationError,
     MidaUtilities,
 } from "@reiryoku/mida";
-import { CTraderConnection } from "@reiryoku/ctrader-layer";
-import { CTraderTradingAccountParameters } from "#platforms/ctrader/CTraderTradingAccountParameters";
-import { CTraderOrder } from "#platforms/ctrader/orders/CTraderOrder";
-import { CTraderTrade } from "#platforms/ctrader/trades/CTraderTrade";
-import { CTraderPosition } from "#platforms/ctrader/positions/CTraderPosition";
+import { CTraderConnection, } from "@reiryoku/ctrader-layer";
+import { CTraderTradingAccountParameters, } from "#platforms/ctrader/CTraderTradingAccountParameters";
+import { CTraderOrder, } from "#platforms/ctrader/orders/CTraderOrder";
+import { CTraderTrade, } from "#platforms/ctrader/trades/CTraderTrade";
+import { CTraderPosition, } from "#platforms/ctrader/positions/CTraderPosition";
 
 export class CTraderTradingAccount extends MidaTradingAccount {
     readonly #connection: CTraderConnection;
@@ -1053,7 +1053,7 @@ export class CTraderTradingAccount extends MidaTradingAccount {
     }
 
     // eslint-disable-next-line max-lines-per-function
-    async getPlainPositionGrossProfit (plainPosition: GenericObject): Promise<number> {
+    public async getPlainPositionGrossProfit (plainPosition: GenericObject): Promise<number> {
         const plainSymbol: GenericObject | undefined = this.#getPlainSymbolById(plainPosition.tradeData.symbolId);
         const symbol: string = plainSymbol?.symbolName;
 
@@ -1131,7 +1131,7 @@ export class CTraderTradingAccount extends MidaTradingAccount {
         return grossProfit * rate;
     }
 
-    async getPlainPositionNetProfit (plainPosition: GenericObject): Promise<number> {
+    public async getPlainPositionNetProfit (plainPosition: GenericObject): Promise<number> {
         const grossProfit: number = await this.getPlainPositionGrossProfit(plainPosition);
         const totalCommission: number = Number(plainPosition.commission) / 100 * 2;
         const totalSwap: number = Number(plainPosition.swap) / 100;
@@ -1149,7 +1149,7 @@ export class CTraderTradingAccount extends MidaTradingAccount {
         return undefined;
     }
 
-    async getPlainOrderById (id: string): Promise<GenericObject | undefined> {
+    public async getPlainOrderById (id: string): Promise<GenericObject | undefined> {
         if (this.#plainOrders.has(id)) {
             return this.#plainOrders.get(id);
         }
@@ -1190,7 +1190,7 @@ export class CTraderTradingAccount extends MidaTradingAccount {
         return undefined;
     }
 
-    async getPlainDealById (id: string): Promise<GenericObject | undefined> {
+    public async getPlainDealById (id: string): Promise<GenericObject | undefined> {
         if (this.#plainDeals.has(id)) {
             return this.#plainDeals.get(id);
         }
@@ -1231,7 +1231,7 @@ export class CTraderTradingAccount extends MidaTradingAccount {
         return undefined;
     }
 
-    async normalizeSymbolVolume (symbol: string, volume: number): Promise<number> {
+    public async normalizeSymbolVolume (symbol: string, volume: number): Promise<number> {
         const completePlainSymbol: GenericObject = await this.#getCompletePlainSymbol(symbol);
         const lotUnits: number = Number(completePlainSymbol.lotSize) / 100;
 

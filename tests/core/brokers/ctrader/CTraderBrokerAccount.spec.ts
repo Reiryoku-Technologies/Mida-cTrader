@@ -1,5 +1,5 @@
-import { CTraderTradingAccount } from "#platforms/ctrader/CTraderTradingAccount";
-import { CTraderPlugin } from "#CTraderPlugin";
+import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
+import { CTraderPlugin, } from "#CTraderPlugin";
 import {
     MidaOrderDirection, MidaOrderStatus,
     MidaPosition,
@@ -7,7 +7,7 @@ import {
     MidaPositionStatus,
     MidaUtilities,
 } from "@reiryoku/mida";
-import { expect } from "@jest/globals";
+import { expect, } from "@jest/globals";
 
 // eslint-disable-next-line max-lines-per-function
 describe("CTraderBrokerAccount", () => {

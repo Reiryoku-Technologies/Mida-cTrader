@@ -1,13 +1,13 @@
-import { CTraderConnection } from "@reiryoku/ctrader-layer";
-import { CTraderApplicationParameters } from "#platforms/ctrader/CTraderApplicationParameters";
-import { CTraderTradingAccount } from "#platforms/ctrader/CTraderTradingAccount";
+import { CTraderConnection, } from "@reiryoku/ctrader-layer";
+import { CTraderApplicationParameters, } from "#platforms/ctrader/CTraderApplicationParameters";
+import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
 import {
     GenericObject,
     MidaTradingAccountOperativity,
     MidaTradingAccountPositionAccounting,
     MidaDate,
 } from "@reiryoku/mida";
-import { CTraderPlugin } from "#CTraderPlugin";
+import { CTraderPlugin, } from "#CTraderPlugin";
 
 export class CTraderApplication {
     readonly #clientId: string;
