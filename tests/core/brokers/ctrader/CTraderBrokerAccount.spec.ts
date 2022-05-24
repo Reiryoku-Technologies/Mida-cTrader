@@ -17,7 +17,7 @@ describe("CTraderBrokerAccount", () => {
         accessToken: "",
         cTraderBrokerAccountId: "",
     };
-    let brokerAccount: CTraderTradingAccount;
+    let tradingAccount: CTraderTradingAccount;
 
     if (!credentials.clientId || !credentials.clientSecret || !credentials.accessToken || !credentials.cTraderBrokerAccountId) {
         describe("no credentials", () => {
@@ -30,7 +30,7 @@ describe("CTraderBrokerAccount", () => {
     }
 
     beforeAll(async () => {
-        brokerAccount = await CTraderPlugin.platform.login(credentials);
+        tradingAccount = await CTraderPlugin.platform.login(credentials) as CTraderTradingAccount;
     });
 
     beforeEach(async () => {
@@ -40,7 +40,7 @@ describe("CTraderBrokerAccount", () => {
 
     describe(".getBalance", () => {
         it("returns a number type", async () => {
-            const balance = await brokerAccount.getBalance();
+            const balance = await tradingAccount.getBalance();
 
             expect(typeof balance).toBe("number");
         });
@@ -52,7 +52,7 @@ describe("CTraderBrokerAccount", () => {
             const symbol = "XAUUSD";
             const volume = MidaUtilities.generateInRandomInteger(1, 2);
             const direction = MidaOrderDirection.BUY;
-            const order = await brokerAccount.placeOrder({
+            const order = await tradingAccount.placeOrder({
                 symbol,
                 volume,
                 direction,
@@ -65,7 +65,7 @@ describe("CTraderBrokerAccount", () => {
             const symbol = "XAUUSD";
             const volume = MidaUtilities.generateInRandomInteger(1, 2);
             const direction = MidaOrderDirection.BUY;
-            const order = await brokerAccount.placeOrder({
+            const order = await tradingAccount.placeOrder({
                 symbol,
                 volume,
                 direction,
@@ -78,7 +78,7 @@ describe("CTraderBrokerAccount", () => {
             const symbol = "XAUUSD";
             const volume = MidaUtilities.generateInRandomInteger(1, 2);
             const direction = MidaOrderDirection.BUY;
-            const order = await brokerAccount.placeOrder({
+            const order = await tradingAccount.placeOrder({
                 symbol,
                 volume,
                 direction,

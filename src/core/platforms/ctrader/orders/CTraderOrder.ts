@@ -80,7 +80,7 @@ export class CTraderOrder extends MidaOrder {
             return;
         }
 
-        this.#connection.sendCommand("ProtoOACancelOrderReq", {
+        await this.#connection.sendCommand("ProtoOACancelOrderReq", {
             ctidTraderAccountId: this.#brokerAccountId,
             orderId: this.id,
         });
@@ -99,7 +99,6 @@ export class CTraderOrder extends MidaOrder {
         const order: GenericObject = descriptor.order;
         const orderId: string = order.orderId.toString();
         const orderCreationTimestamp: number = Number(order.tradeData.openTimestamp);
-        const positionId: string = order.positionId.toString();
 
         if (!this.id && orderId) {
             this.id = orderId;
@@ -127,10 +126,16 @@ export class CTraderOrder extends MidaOrder {
             }
             case "ORDER_PARTIAL_FILL":
             case "ORDER_FILLED": {
-                this.#removeEventsListeners();
-                this.onTrade(await this.#cTraderTradingAccount.toMidaTrade(descriptor.deal));
+                if (!this.positionId) {
+                    this.positionId = order.positionId.toString();
+                }
 
-                this.onStatusChange(MidaOrderStatus.EXECUTED);
+                this.onTrade(await this.#cTraderTradingAccount.normalizeTrade(descriptor.deal));
+
+                if (order.orderStatus.toUpperCase() === "ORDER_STATUS_FILLED") {
+                    this.#removeEventsListeners();
+                    this.onStatusChange(MidaOrderStatus.EXECUTED);
+                }
 
                 break;
             }
@@ -165,6 +170,7 @@ export class CTraderOrder extends MidaOrder {
     #onReject (descriptor: GenericObject): void {
         this.#removeEventsListeners();
 
+        this.creationDate = new MidaDate();
         this.lastUpdateDate = new MidaDate();
 
         switch (descriptor.errorCode) {
@@ -197,6 +203,10 @@ export class CTraderOrder extends MidaOrder {
             }
             default: {
                 this.rejection = MidaOrderRejection.UNKNOWN;
+
+                console.log("Unknown cTrader Open API error");
+                console.log(descriptor);
+                console.log("Consult the cTrader Open API documentation to find a complete explanation");
             }
         }
 

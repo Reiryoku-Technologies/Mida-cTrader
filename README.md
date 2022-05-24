@@ -4,7 +4,7 @@
 [![Image](https://img.shields.io/discord/780532638846287904?label=community)](https://discord.gg/cKyWTUsr3q)
 <br>
 
-A [Mida](https://github.com/Reiryoku-Technologies/Mida) plugin for using cTrader accounts.
+A [Mida](https://github.com/Reiryoku-Technologies/Mida) plugin for using cTrader.
 
 ## Usage
 For the complete documentation refer to [Mida](https://github.com/Reiryoku-Technologies/Mida).
@@ -12,7 +12,7 @@ For the complete documentation refer to [Mida](https://github.com/Reiryoku-Techn
 ### Broker account login
 How to login into a cTrader broker account.
 ```javascript
-const { Mida, MidaBroker, } = require("@reiryoku/mida");
+const { Mida, } = require("@reiryoku/mida");
 
 // Use the Mida cTrader plugin
 Mida.use(require("@reiryoku/mida-ctrader"));

@@ -68,7 +68,7 @@ export class CTraderApplication {
         this.#isAuthenticated = true;
     }
 
-    public async loginBrokerAccount (accessToken: string, cTraderBrokerAccountId: string): Promise<CTraderTradingAccount> {
+    public async loginTradingAccount (accessToken: string, cTraderBrokerAccountId: string): Promise<CTraderTradingAccount> {
         const accounts = (await this.#demoConnection.sendCommand("ProtoOAGetAccountListByAccessTokenReq", { accessToken, })).ctidTraderAccount;
         const account = accounts.find((account: GenericObject) => account.ctidTraderAccountId.toString() === cTraderBrokerAccountId);
 

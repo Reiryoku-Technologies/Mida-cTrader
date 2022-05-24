@@ -7,6 +7,7 @@ import {
     MidaPositionStatus,
     MidaProtection,
     MidaProtectionChange,
+    MidaProtectionChangeStatus,
     MidaUtilities,
 } from "@reiryoku/mida";
 import { CTraderPositionParameters } from "#platforms/ctrader/positions/CTraderPositionParameters";
@@ -143,7 +144,62 @@ export class CTraderPosition extends MidaPosition {
 
     // eslint-disable-next-line max-lines-per-function
     async #onUpdate (descriptor: GenericObject): Promise<void> {
+        if (this.#updateEventIsLocked) {
+            this.#updateEventQueue.push(descriptor);
 
+            return;
+        }
+
+        this.#updateEventIsLocked = true;
+
+        const plainOrder: GenericObject = descriptor.order;
+        const positionId: string = plainOrder?.positionId?.toString();
+        const messageId: string = descriptor.clientMsgId;
+
+        if (positionId && positionId === this.id) {
+            switch (descriptor.executionType) {
+                case "SWAP": {
+                    // TODO: pass the real quantity
+                    this.onSwap(NaN);
+
+                    break;
+                }
+                case "ORDER_ACCEPTED":
+                case "ORDER_REPLACED": {
+                    if (plainOrder.orderType === "STOP_LOSS_TAKE_PROFIT") {
+                        this.onProtectionChange(this.#cTraderTradingAccount.normalizeProtection(descriptor.position));
+
+                        const protectionChangeRequest: any[] | undefined = this.#protectionChangePendingRequests.get(messageId);
+
+                        if (protectionChangeRequest) {
+                            protectionChangeRequest[1]({
+                                status: MidaProtectionChangeStatus.SUCCEEDED,
+                                requestedProtection: protectionChangeRequest[0],
+                            });
+                        }
+                    }
+
+                    break;
+                }
+                case "ORDER_PARTIAL_FILL":
+                case "ORDER_FILLED": {
+                    this.onTradeExecute(await this.#cTraderTradingAccount.normalizeTrade(descriptor.deal));
+
+                    break;
+                }
+            }
+        }
+
+        // Process next event if there is any
+        const nextDescriptor: GenericObject | undefined = this.#updateEventQueue.shift();
+        this.#updateEventIsLocked = false;
+
+        if (nextDescriptor) {
+            this.#onUpdate(nextDescriptor);
+        }
+        else if (descriptor?.position?.positionStatus.toUpperCase() === "POSITION_STATUS_CLOSED") {
+            this.#removeEventsListeners();
+        }
     }
 
     #configureListeners (): void {
