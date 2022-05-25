@@ -1,6 +1,6 @@
 import { CTraderConnection, } from "@reiryoku/ctrader-layer";
 import { CTraderApplicationParameters, } from "#platforms/ctrader/CTraderApplicationParameters";
-import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
+import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
 import {
     GenericObject,
     MidaTradingAccountOperativity,
@@ -68,7 +68,7 @@ export class CTraderApplication {
         this.#isAuthenticated = true;
     }
 
-    public async loginTradingAccount (accessToken: string, cTraderBrokerAccountId: string): Promise<CTraderTradingAccount> {
+    public async loginTradingAccount (accessToken: string, cTraderBrokerAccountId: string): Promise<CTraderAccount> {
         const accounts = (await this.#demoConnection.sendCommand("ProtoOAGetAccountListByAccessTokenReq", { accessToken, })).ctidTraderAccount;
         const account = accounts.find((account: GenericObject) => account.ctidTraderAccountId.toString() === cTraderBrokerAccountId);
 
@@ -106,7 +106,7 @@ export class CTraderApplication {
         // eslint-disable-next-line max-len
         const depositAsset: GenericObject = assets.find((asset: GenericObject) => asset.assetId.toString() === accountDescriptor.depositAssetId.toString()) as GenericObject;
 
-        return new CTraderTradingAccount({
+        return new CTraderAccount({
             id: account.traderLogin.toString(),
             platform: CTraderPlugin.platform,
             creationDate: new MidaDate(Number(accountDescriptor.registrationTimestamp)),

@@ -1,4 +1,4 @@
-import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
+import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
 import { CTraderPlugin, } from "#CTraderPlugin";
 import {
     MidaOrderDirection, MidaOrderStatus,
@@ -17,7 +17,7 @@ describe("CTraderBrokerAccount", () => {
         accessToken: "",
         cTraderBrokerAccountId: "",
     };
-    let tradingAccount: CTraderTradingAccount;
+    let tradingAccount: CTraderAccount;
 
     if (!credentials.clientId || !credentials.clientSecret || !credentials.accessToken || !credentials.cTraderBrokerAccountId) {
         describe("no credentials", () => {
@@ -30,7 +30,7 @@ describe("CTraderBrokerAccount", () => {
     }
 
     beforeAll(async () => {
-        tradingAccount = await CTraderPlugin.platform.login(credentials) as CTraderTradingAccount;
+        tradingAccount = await CTraderPlugin.platform.login(credentials) as CTraderAccount;
     });
 
     beforeEach(async () => {

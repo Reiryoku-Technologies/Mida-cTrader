@@ -29,12 +29,12 @@ import {
     MidaUtilities,
 } from "@reiryoku/mida";
 import { CTraderConnection, } from "@reiryoku/ctrader-layer";
-import { CTraderTradingAccountParameters, } from "#platforms/ctrader/CTraderTradingAccountParameters";
+import { CTraderAccountParameters, } from "#platforms/ctrader/CTraderAccountParameters";
 import { CTraderOrder, } from "#platforms/ctrader/orders/CTraderOrder";
 import { CTraderTrade, } from "#platforms/ctrader/trades/CTraderTrade";
 import { CTraderPosition, } from "#platforms/ctrader/positions/CTraderPosition";
 
-export class CTraderTradingAccount extends MidaTradingAccount {
+export class CTraderAccount extends MidaTradingAccount {
     readonly #connection: CTraderConnection;
     readonly #brokerAccountId: string;
     readonly #brokerName: string;
@@ -68,7 +68,7 @@ export class CTraderTradingAccount extends MidaTradingAccount {
         connection,
         brokerAccountId,
         brokerName,
-    }: CTraderTradingAccountParameters) {
+    }: CTraderAccountParameters) {
         super({
             id,
             platform,
@@ -1044,6 +1044,7 @@ export class CTraderTradingAccount extends MidaTradingAccount {
         return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal.orderId.toString() === id);
     }
 
+    // eslint-disable-next-line id-length
     #getDealsDescriptorsByPositionId (id: string): GenericObject[] {
         return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal.positionId.toString() === id);
     }

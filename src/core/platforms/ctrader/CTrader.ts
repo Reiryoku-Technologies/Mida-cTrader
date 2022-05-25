@@ -1,5 +1,5 @@
 import { MidaTradingPlatform, } from "@reiryoku/mida";
-import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
+import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
 import { CTraderLoginParameters, } from "#platforms/ctrader/CTraderLoginParameters";
 import { CTraderApplication, } from "#platforms/ctrader/CTraderApplication";
 
@@ -13,9 +13,9 @@ export class CTrader extends MidaTradingPlatform {
         clientSecret,
         accessToken,
         cTraderBrokerAccountId,
-    }: CTraderLoginParameters): Promise<CTraderTradingAccount> {
+    }: CTraderLoginParameters): Promise<CTraderAccount> {
         const cTraderApplication: CTraderApplication = await CTraderApplication.create({ clientId, clientSecret, });
-        const tradingAccount: CTraderTradingAccount = await cTraderApplication.loginTradingAccount(accessToken, cTraderBrokerAccountId);
+        const tradingAccount: CTraderAccount = await cTraderApplication.loginTradingAccount(accessToken, cTraderBrokerAccountId);
 
         await tradingAccount.preload();
 

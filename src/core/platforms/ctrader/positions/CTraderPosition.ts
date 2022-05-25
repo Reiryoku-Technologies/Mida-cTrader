@@ -12,7 +12,7 @@ import {
 } from "@reiryoku/mida";
 import { CTraderPositionParameters, } from "#platforms/ctrader/positions/CTraderPositionParameters";
 import { CTraderConnection, } from "@reiryoku/ctrader-layer";
-import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
+import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
 
 export class CTraderPosition extends MidaPosition {
     readonly #connection: CTraderConnection;
@@ -48,8 +48,8 @@ export class CTraderPosition extends MidaPosition {
         this.#configureListeners();
     }
 
-    get #cTraderTradingAccount (): CTraderTradingAccount {
-        return this.tradingAccount as CTraderTradingAccount;
+    get #cTraderTradingAccount (): CTraderAccount {
+        return this.tradingAccount as CTraderAccount;
     }
 
     get #brokerAccountId (): string {

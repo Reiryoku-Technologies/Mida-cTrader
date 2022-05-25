@@ -3,7 +3,7 @@ import {
 } from "@reiryoku/mida";
 import { CTraderOrderParameters, } from "#platforms/ctrader/orders/CTraderOrderParameters";
 import { CTraderConnection, } from "@reiryoku/ctrader-layer";
-import { CTraderTradingAccount, } from "#platforms/ctrader/CTraderTradingAccount";
+import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
 
 export class CTraderOrder extends MidaOrder {
     // The uuid associated to the order request
@@ -69,8 +69,8 @@ export class CTraderOrder extends MidaOrder {
         }
     }
 
-    get #cTraderTradingAccount (): CTraderTradingAccount {
-        return this.tradingAccount as CTraderTradingAccount;
+    get #cTraderTradingAccount (): CTraderAccount {
+        return this.tradingAccount as CTraderAccount;
     }
 
     get #brokerAccountId (): string {

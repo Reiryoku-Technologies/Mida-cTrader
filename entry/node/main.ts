@@ -1,1 +1,1 @@
-module.exports = require("!/plugin.mida").default;
+export * from "!/src/core/CTraderPlugin";
