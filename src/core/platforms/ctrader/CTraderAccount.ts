@@ -115,9 +115,9 @@ export class CTraderAccount extends MidaTradingAccount {
     public get plainOpenPositions (): GenericObject[] {
         const plainOpenPositions: GenericObject[] = [];
 
-        for (const plainOpenPosition of [ ...this.#plainPositions.values(), ]) {
-            if (plainOpenPosition.positionStatus === "POSITION_STATUS_OPEN") {
-                plainOpenPositions.push(plainOpenPosition);
+        for (const plainPosition of [ ...this.#plainPositions.values(), ]) {
+            if (plainPosition.positionStatus === "POSITION_STATUS_OPEN") {
+                plainOpenPositions.push(plainPosition);
             }
         }
 
@@ -301,7 +301,7 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     public override async getOrders (symbol: string): Promise<MidaOrder[]> {
-        const normalizedFromTimestamp: number = Date.now() - 1000 * 60 * 60 * 24;
+        const normalizedFromTimestamp: number = Date.now() - 1000 * 60 * 60 * 24 * 3;
         const normalizedToTimestamp: number = Date.now();
         const ordersPromises: Promise<MidaOrder>[] = [];
         const plainOrders: GenericObject[] = await this.#getPlainOrders(normalizedFromTimestamp, normalizedToTimestamp);
@@ -401,7 +401,7 @@ export class CTraderAccount extends MidaTradingAccount {
 
     public override async getOpenPositions (): Promise<MidaPosition[]> {
         return Promise.all(this.plainOpenPositions.map(
-            (plainPosition: GenericObject) => this.normalizePosition(plainPosition.positionId))
+            (plainPosition: GenericObject) => this.normalizePosition(plainPosition))
         ) as Promise<MidaPosition[]>;
     }
 
@@ -514,7 +514,7 @@ export class CTraderAccount extends MidaTradingAccount {
             tradingAccount: this,
             volume,
             symbol,
-            protection: cTraderPosition ? this.normalizeProtection(cTraderPosition) : {},
+            // protection: cTraderPosition ? this.normalizeProtection(cTraderPosition) : {},
             direction: MidaPositionDirection.LONG,
             connection: this.#connection,
         });
@@ -1097,33 +1097,36 @@ export class CTraderAccount extends MidaTradingAccount {
             grossProfit = (openPrice - closePrice) * volume * lotUnits;
         }
 
-        // <rate-for-conversion-to-deposit-asset>
         const quoteAssedId: string = plainSymbol.quoteAssetId.toString();
         const depositAssetId: string = this.#getPlainAssetByName(this.primaryAsset)?.assetId.toString() as string;
-        let depositConversionChain: GenericObject[] | undefined = this.#depositConversionChains.get(symbol);
         let rate: number = 1;
-        let movedAssetId: string = quoteAssedId;
 
-        if (!depositConversionChain) {
-            depositConversionChain = (await this.#sendCommand("ProtoOASymbolsForConversionReq", {
-                firstAssetId: quoteAssedId,
-                lastAssetId: depositAssetId,
-            })).symbol as GenericObject[];
+        // <rate-for-conversion-to-deposit-asset>
+        if (quoteAssedId !== depositAssetId) {
+            let depositConversionChain: GenericObject[] = this.#depositConversionChains.get(symbol) ?? [];
+            let movedAssetId: string = quoteAssedId;
 
-            this.#depositConversionChains.set(symbol, depositConversionChain);
-        }
+            if (!depositConversionChain) {
+                depositConversionChain = (await this.#sendCommand("ProtoOASymbolsForConversionReq", {
+                    firstAssetId: quoteAssedId,
+                    lastAssetId: depositAssetId,
+                })).symbol as GenericObject[];
 
-        for (const plainLightSymbol of depositConversionChain) {
-            const lastLightSymbolTick: MidaTick = await this.#getSymbolLastTick(plainLightSymbol.symbolName);
-            const supposedClosePrice: number = lastLightSymbolTick.ask;
-
-            if (plainLightSymbol.baseAssetId.toString() === movedAssetId) {
-                rate = rate * supposedClosePrice;
-                movedAssetId = plainLightSymbol.quoteAssetId.toString();
+                this.#depositConversionChains.set(symbol, depositConversionChain);
             }
-            else {
-                rate = rate * (1 / supposedClosePrice);
-                movedAssetId = plainLightSymbol.baseAssetId.toString();
+
+            for (const plainLightSymbol of depositConversionChain) {
+                const lastLightSymbolTick: MidaTick = await this.#getSymbolLastTick(plainLightSymbol.symbolName);
+                const supposedClosePrice: number = lastLightSymbolTick.ask;
+
+                if (plainLightSymbol.baseAssetId.toString() === movedAssetId) {
+                    rate = rate * supposedClosePrice;
+                    movedAssetId = plainLightSymbol.quoteAssetId.toString();
+                }
+                else {
+                    rate = rate * (1 / supposedClosePrice);
+                    movedAssetId = plainLightSymbol.baseAssetId.toString();
+                }
             }
         }
         // </rate-for-converion-to-deposit-asset>
@@ -1141,13 +1144,7 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     public getPlainPositionById (id: string): GenericObject | undefined {
-        for (const plainPosition of [ ...this.#plainPositions.values(), ]) {
-            if (plainPosition.positionId === id) {
-                return plainPosition;
-            }
-        }
-
-        return undefined;
+        return this.#plainPositions.get(id);
     }
 
     public async getPlainOrderById (id: string): Promise<GenericObject | undefined> {
