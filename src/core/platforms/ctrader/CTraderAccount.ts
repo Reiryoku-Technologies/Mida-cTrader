@@ -47,7 +47,7 @@ export class CTraderAccount extends MidaTradingAccount {
     readonly #tickListeners: Map<string, number>;
     readonly #plainOrders: Map<string, GenericObject>;
     readonly #normalizedOrders: Map<string, CTraderOrder>;
-    readonly #plainDeals: Map<string, GenericObject>;
+    readonly #plainTrades: Map<string, GenericObject>;
     readonly #normalizedTrades: Map<string, CTraderTrade>;
     readonly #plainPositions: Map<string, GenericObject>;
     readonly #normalizedPositions: Map<string, CTraderPosition>;
@@ -55,6 +55,8 @@ export class CTraderAccount extends MidaTradingAccount {
     readonly #internalTickListeners: Map<string, Function>;
     readonly #depositConversionChains: Map<string, GenericObject[]>;
     readonly #lastTicksPromises: Map<string, Promise<MidaTick>>;
+    readonly #updateEventQueue: GenericObject[];
+    #updateEventIsLocked: boolean;
 
     public constructor ({
         id,
@@ -92,7 +94,7 @@ export class CTraderAccount extends MidaTradingAccount {
         this.#tickListeners = new Map();
         this.#plainOrders = new Map();
         this.#normalizedOrders = new Map();
-        this.#plainDeals = new Map();
+        this.#plainTrades = new Map();
         this.#normalizedTrades = new Map();
         this.#plainPositions = new Map();
         this.#normalizedPositions = new Map();
@@ -100,6 +102,8 @@ export class CTraderAccount extends MidaTradingAccount {
         this.#internalTickListeners = new Map();
         this.#depositConversionChains = new Map();
         this.#lastTicksPromises = new Map();
+        this.#updateEventQueue = [];
+        this.#updateEventIsLocked = false;
 
         this.#configureListeners();
     }
@@ -282,10 +286,10 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     public override async watchSymbolTicks (symbol: string): Promise<void> {
-        const symbolDescriptor = this.#symbols.get(symbol);
+        const symbolDescriptor: GenericObject | undefined = this.#symbols.get(symbol);
 
         if (!symbolDescriptor) {
-            return undefined;
+            return;
         }
 
         const listenersCount: number = this.#tickListeners.get(symbol) ?? 0;
@@ -299,6 +303,8 @@ export class CTraderAccount extends MidaTradingAccount {
             });
         }
     }
+
+
 
     public override async getOrders (symbol: string): Promise<MidaOrder[]> {
         const normalizedFromTimestamp: number = Date.now() - 1000 * 60 * 60 * 24 * 3;
@@ -331,7 +337,7 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     public override async getTrades (symbol: string): Promise<MidaTrade[]> {
-        const normalizedFromTimestamp: number = Date.now() - 1000 * 60 * 60 * 24;
+        const normalizedFromTimestamp: number = Date.now() - 1000 * 60 * 60 * 24 * 3;
         const normalizedToTimestamp: number = Date.now();
         const dealsPromises: Promise<MidaTrade>[] = [];
 
@@ -529,7 +535,9 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     public override async getSymbolAveragePrice (symbol: string): Promise<number> {
-        return (await this.getSymbolBid(symbol) + await this.getSymbolAsk(symbol)) / 2;
+        const { bid, ask, } = await this.#getSymbolLastTick(symbol);
+
+        return (bid + ask) / 2;
     }
 
     // eslint-disable-next-line max-lines-per-function, complexity
@@ -546,8 +554,8 @@ export class CTraderAccount extends MidaTradingAccount {
 
         // Check if order is related to an existing position
         if (positionId && !directives.symbol) {
-            const cTraderPosition: GenericObject = this.#plainPositions.get(positionId) as GenericObject;
-            existingPosition = await this.normalizePosition(cTraderPosition) as CTraderPosition;
+            const plainPosition: GenericObject = this.#plainPositions.get(positionId) as GenericObject;
+            existingPosition = await this.normalizePosition(plainPosition) as CTraderPosition;
             symbol = existingPosition.symbol;
 
             if (!Number.isFinite(requestedVolume)) {
@@ -881,7 +889,7 @@ export class CTraderAccount extends MidaTradingAccount {
         })).deal;
 
         for (const plainDeal of plainDeals) {
-            this.#plainDeals.set(plainDeal.dealId.toString(), plainDeal);
+            this.#plainTrades.set(plainDeal.dealId.toString(), plainDeal);
         }
     }
 
@@ -931,22 +939,44 @@ export class CTraderAccount extends MidaTradingAccount {
         }
     }
 
-    #onUpdate (descriptor: GenericObject): void {
+    async #onUpdate (descriptor: GenericObject): Promise<void> {
+        if (this.#updateEventIsLocked) {
+            this.#updateEventQueue.push(descriptor);
+
+            return;
+        }
+
+        this.#updateEventIsLocked = true;
+
         // <update-orders>
         const plainOrder: GenericObject = descriptor.order;
 
         if (plainOrder?.orderId && plainOrder.orderType && plainOrder.tradeData) {
-            this.#plainOrders.set(plainOrder.orderId, plainOrder);
+            const orderId: string = plainOrder.orderId.toString();
+            const orderAlreadyExists: boolean = this.#plainOrders.has(orderId);
+
+            this.#plainOrders.set(orderId, plainOrder);
+
+            if (!orderAlreadyExists && descriptor.executionType.toUpperCase() === "ORDER_ACCEPTED") {
+                this.notifyListeners("order", { order: await this.normalizeOrder(plainOrder), });
+            }
         }
         // </update-orders>
 
-        // <update-deals>
-        const plainDeal: GenericObject = descriptor.deal;
+        // <update-trades>
+        const plainTrade: GenericObject = descriptor.deal;
 
-        if (plainDeal?.orderId && plainDeal?.dealId && plainDeal?.positionId) {
-            this.#plainDeals.set(plainDeal.dealId, plainDeal);
+        if (plainTrade?.orderId && plainTrade?.dealId && plainTrade?.positionId) {
+            const tradeId: string = plainTrade.dealId.toString();
+            const tradeAlreadyExists: boolean = this.#plainTrades.has(tradeId);
+
+            this.#plainTrades.set(plainTrade.dealId, plainTrade);
+
+            if (!tradeAlreadyExists) {
+                this.notifyListeners("trade", { trade: await this.normalizeTrade(plainTrade), });
+            }
         }
-        // </update-deals>
+        // </update-trades>
 
         // <update-positions>
         const plainPosition: GenericObject = descriptor.position;
@@ -955,6 +985,14 @@ export class CTraderAccount extends MidaTradingAccount {
             this.#plainPositions.set(plainPosition.positionId, plainPosition);
         }
         // </update-positions>
+
+        // Process next event if there is any
+        const nextDescriptor: GenericObject | undefined = this.#updateEventQueue.shift();
+        this.#updateEventIsLocked = false;
+
+        if (nextDescriptor) {
+            this.#onUpdate(nextDescriptor);
+        }
     }
 
     // eslint-disable-next-line max-lines-per-function
@@ -1037,16 +1075,16 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     #getDealDescriptorById (id: string): GenericObject | undefined {
-        return [ ...this.#plainDeals.values(), ].find((deal: GenericObject) => deal.dealId.toString() === id);
+        return [ ...this.#plainTrades.values(), ].find((deal: GenericObject) => deal.dealId.toString() === id);
     }
 
     #getDealsDescriptorsByOrderId (id: string): GenericObject[] {
-        return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal.orderId.toString() === id);
+        return [ ...this.#plainTrades.values(), ].filter((deal: GenericObject) => deal.orderId.toString() === id);
     }
 
     // eslint-disable-next-line id-length
     #getDealsDescriptorsByPositionId (id: string): GenericObject[] {
-        return [ ...this.#plainDeals.values(), ].filter((deal: GenericObject) => deal.positionId.toString() === id);
+        return [ ...this.#plainTrades.values(), ].filter((deal: GenericObject) => deal.positionId.toString() === id);
     }
 
     #getPositionDescriptorById (id: string): GenericObject | undefined {
@@ -1189,8 +1227,8 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     public async getPlainDealById (id: string): Promise<GenericObject | undefined> {
-        if (this.#plainDeals.has(id)) {
-            return this.#plainDeals.get(id);
+        if (this.#plainTrades.has(id)) {
+            return this.#plainTrades.get(id);
         }
 
         const { W1, } = MidaTimeframe; // max. 1 week as indicated at https://spotware.github.io/open-api-docs/messages/#protooadeallistreq
@@ -1212,13 +1250,13 @@ export class CTraderAccount extends MidaTradingAccount {
             for (const plainDeal of plainDeals) {
                 const dealId: string = Number(plainDeal.dealId).toString();
 
-                if (!this.#plainDeals.has(dealId)) {
-                    this.#plainDeals.set(dealId, plainDeal);
+                if (!this.#plainTrades.has(dealId)) {
+                    this.#plainTrades.set(dealId, plainDeal);
                 }
             }
 
-            if (this.#plainDeals.has(id)) {
-                return this.#plainDeals.get(id);
+            if (this.#plainTrades.has(id)) {
+                return this.#plainTrades.get(id);
             }
 
             toTimestamp = fromTimestamp;
