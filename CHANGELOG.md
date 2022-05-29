@@ -1,4 +1,4 @@
-3.0.0 - 11-04-2022
+3.0.0 - 29-05-2022
 ===================
 * **_BREAKING_** Add compatibility with Mida 7
 
