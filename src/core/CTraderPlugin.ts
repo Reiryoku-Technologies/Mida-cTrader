@@ -5,7 +5,7 @@ import {
 import { CTrader, } from "#platforms/ctrader/CTrader";
 
 export const pluginId: string = "d925e9fe-4352-4391-9a85-f21b2ba6b6d6";
-export const pluginVersion: string = "2.1.0";
+export const pluginVersion: string = "3.0.0";
 
 export class CTraderPlugin extends MidaPlugin {
     public constructor () {
