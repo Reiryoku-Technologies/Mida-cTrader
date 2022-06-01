@@ -1,3 +1,6 @@
+## Bug fixes
+* Set the correct position direction and protection when normalizing a position [#14](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/14)
+
 3.0.0 - 29-05-2022
 ===================
 * **_BREAKING_** Add compatibility with Mida 7
