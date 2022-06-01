@@ -10,15 +10,16 @@ A [Mida](https://github.com/Reiryoku-Technologies/Mida) plugin for using cTrader
 For the complete documentation refer to [Mida](https://github.com/Reiryoku-Technologies/Mida).
 
 ### Broker account login
-How to login into a cTrader broker account.
+How to login into a cTrader account.
 ```javascript
-const { Mida, } = require("@reiryoku/mida");
+import { Mida, } from "@reiryoku/mida";
+import { CTraderPlugin, } from "@reiryoku/mida-ctrader";
 
 // Use the Mida cTrader plugin
-Mida.use(require("@reiryoku/mida-ctrader"));
+Mida.use(new CTraderPlugin());
 
-// Login into any cTrader broker account
-const myAccount = await MidaBroker.login("cTrader", {
+// Login into a cTrader account
+const myAccount = await Mida.login("cTrader", {
     clientId: "",
     clientSecret: "",
     accessToken: "",
