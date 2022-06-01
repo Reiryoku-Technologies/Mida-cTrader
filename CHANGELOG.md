@@ -1,3 +1,5 @@
+3.0.1 - 02-06-2022
+===================
 ## Bug fixes
 * Set the correct position direction and protection when normalizing a position [#14](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/14)
 
