@@ -509,19 +509,23 @@ export class CTraderAccount extends MidaTradingAccount {
         return Promise.all(orderDealsPromises);
     }
 
-    public async normalizePosition (cTraderPosition: GenericObject): Promise<CTraderPosition | undefined> {
-        const symbol: string = this.#getPlainSymbolById(cTraderPosition.tradeData.symbolId.toString())?.symbolName;
+    public async normalizePosition (plainPosition: GenericObject): Promise<CTraderPosition | undefined> {
+        const symbol: string = this.#getPlainSymbolById(plainPosition.tradeData.symbolId.toString())?.symbolName;
         const completePlainSymbol: GenericObject = await this.#getCompletePlainSymbol(symbol);
         const lotUnits: number = Number(completePlainSymbol.lotSize) / 100;
-        const volume = Number(cTraderPosition.tradeData.volume) / lotUnits / 100;
+        const volume = Number(plainPosition.tradeData.volume) / lotUnits / 100;
 
         return new CTraderPosition({
-            id: cTraderPosition.positionId.toString(),
+            id: plainPosition.positionId.toString(),
             tradingAccount: this,
             volume,
             symbol,
-            // protection: cTraderPosition ? this.normalizeProtection(cTraderPosition) : {},
-            direction: MidaPositionDirection.LONG,
+            protection: this.normalizeProtection({
+                takeProfit: plainPosition.takeProfit,
+                stopLoss: plainPosition.stopLoss,
+                trailingStopLoss: plainPosition.trailingStopLoss === true,
+            }),
+            direction: plainPosition.tradeData.tradeSide === "BUY" ? MidaPositionDirection.LONG : MidaPositionDirection.SHORT,
             connection: this.#connection,
         });
     }
