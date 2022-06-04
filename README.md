@@ -29,8 +29,5 @@ const myAccount = await Mida.login("cTrader", {
 
 ### Timeframes
 The supported timeframes<br><br>
-`M1` `M2` `M3` `M4` `M5` `M10` `M15` `M30`<br>
-`H1` `H4` `H12`<br>
-`D1`<br>
-`W1`<br>
-`MN1`<br>
+`M1` `M2` `M3` `M4` `M5` `M10` `M15` `M30`
+`H1` `H4` `H12` `D1` `W1` `MN1`
