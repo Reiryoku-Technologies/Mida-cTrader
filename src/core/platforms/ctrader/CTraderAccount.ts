@@ -178,7 +178,22 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     public override async isSymbolMarketOpen (symbol: string): Promise<boolean> {
-        throw new MidaUnsupportedOperationError();
+        const completeSymbol: GenericObject = await this.#getCompletePlainSymbol(symbol);
+        const schedules: GenericObject[] = completeSymbol.schedule;
+        const actualDate: Date = new Date();
+        const actualTimestamp: number = actualDate.getTime();
+        const lastSundayTimestamp: number = getLastSunday(actualDate).getTime();
+
+        for (const schedule of schedules) {
+            if (
+                actualTimestamp >= (lastSundayTimestamp + schedule.startSecond * 1000) &&
+                actualTimestamp <= (lastSundayTimestamp + schedule.endSecond * 1000)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public override async getSymbolPeriods (symbol: string, timeframe: number): Promise<MidaPeriod[]> {
@@ -208,6 +223,8 @@ export class CTraderAccount extends MidaTradingAccount {
                 timeframe,
             }));
         }
+
+        periods.sort((left, right): number => right.startDate.timestamp - left.startDate.timestamp);
 
         return periods;
     }
@@ -1335,3 +1352,11 @@ export function toCTraderTimeframe (timeframe: number): string {
         }
     }
 }
+
+const getLastSunday = (date: Date): Date => {
+    const lastSunday = new Date(date);
+
+    lastSunday.setDate(lastSunday.getDate() - lastSunday.getDay());
+
+    return lastSunday;
+};
