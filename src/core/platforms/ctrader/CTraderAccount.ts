@@ -610,6 +610,7 @@ export class CTraderAccount extends MidaTradingAccount {
         const completePlainSymbol: GenericObject = await this.#getCompletePlainSymbol(symbol);
         const lotUnits: number = Number(completePlainSymbol.lotSize) / 100;
         const normalizedVolume: number = requestedVolume * lotUnits * 100;
+        let setProtectionAfterExecution: boolean = false;
 
         requestDirectives = {
             symbolId: plainSymbol.symbolId.toString(),
@@ -651,10 +652,17 @@ export class CTraderAccount extends MidaTradingAccount {
                     requestDirectives.trailingStopLoss = true;
                 }
             }
+            else {
+                setProtectionAfterExecution = true;
+            }
         }
         else {
             requestDirectives.positionId = positionId;
             requestDirectives.orderType = "MARKET";
+
+            if (directives.protection) {
+                console.log("Order protection ignored, change the protection directly on the position");
+            }
         }
 
         const resolverEvents: string[] = directives.resolverEvents ?? [
@@ -697,6 +705,20 @@ export class CTraderAccount extends MidaTradingAccount {
                 this.#normalizedOrders.set(id, order);
             }
         });
+
+        // <set-protection-after-execution>
+        if (setProtectionAfterExecution) {
+            order.on("execute", async (): Promise<void> => {
+                const protection = directives.protection;
+                const openPosition: MidaPosition | undefined = (await this.getOpenPositions())
+                    .find((position: MidaPosition) => position.id === order.positionId);
+
+                if (openPosition && protection) {
+                    await openPosition.changeProtection(protection);
+                }
+            });
+        }
+        // </set-protection-after-execution>
 
         this.#sendCommand("ProtoOANewOrderReq", requestDirectives, uuid);
 
