@@ -1,3 +1,9 @@
+### Features
+* Implement `isSymbolMarketOpen()` interface [#16](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/16)
+
+### Bug fixes
+* Order periods from oldest to newest and use single source of truth as event emitter [#17](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/17)
+
 3.0.1 - 02-06-2022
 ===================
 ## Bug fixes

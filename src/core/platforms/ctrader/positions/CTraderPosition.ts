@@ -1,5 +1,5 @@
 import {
-    GenericObject,
+    GenericObject, MidaEmitter,
     MidaOrder,
     MidaOrderDirection,
     MidaPosition,
@@ -16,6 +16,7 @@ import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
 
 export class CTraderPosition extends MidaPosition {
     readonly #connection: CTraderConnection;
+    readonly #cTraderEmitter: MidaEmitter;
     readonly #updateEventQueue: GenericObject[];
     #updateEventIsLocked: boolean;
     #updateEventUuid?: string;
@@ -29,6 +30,7 @@ export class CTraderPosition extends MidaPosition {
         direction,
         protection,
         connection,
+        cTraderEmitter,
     }: CTraderPositionParameters) {
         super({
             id,
@@ -40,6 +42,7 @@ export class CTraderPosition extends MidaPosition {
         });
 
         this.#connection = connection;
+        this.#cTraderEmitter = cTraderEmitter;
         this.#updateEventQueue = [];
         this.#updateEventIsLocked = false;
         this.#updateEventUuid = undefined;
@@ -203,7 +206,9 @@ export class CTraderPosition extends MidaPosition {
     }
 
     #configureListeners (): void {
-        this.#updateEventUuid = this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
+        this.#updateEventUuid = this.#cTraderEmitter.on("execution", (event): void => {
+            const descriptor: GenericObject = event.descriptor.descriptor;
+
             if (descriptor.ctidTraderAccountId.toString() === this.#brokerAccountId) {
                 this.#onUpdate(descriptor); // Not using await is intended
             }
@@ -212,7 +217,7 @@ export class CTraderPosition extends MidaPosition {
 
     #removeEventsListeners (): void {
         if (this.#updateEventUuid) {
-            this.#connection.removeEventListener(this.#updateEventUuid);
+            this.#cTraderEmitter.removeEventListener(this.#updateEventUuid);
 
             this.#updateEventUuid = undefined;
         }

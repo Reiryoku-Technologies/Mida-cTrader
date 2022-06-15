@@ -2,7 +2,7 @@ import {
     GenericObject,
     MidaAsset,
     MidaAssetStatement,
-    MidaDate,
+    MidaDate, MidaEmitter,
     MidaEventListener,
     MidaOrder,
     MidaOrderDirection,
@@ -36,6 +36,7 @@ import { CTraderPosition, } from "#platforms/ctrader/positions/CTraderPosition";
 
 export class CTraderAccount extends MidaTradingAccount {
     readonly #connection: CTraderConnection;
+    readonly #cTraderEmitter: MidaEmitter;
     readonly #brokerAccountId: string;
     readonly #brokerName: string;
     readonly #assets: Map<string, GenericObject>;
@@ -83,6 +84,7 @@ export class CTraderAccount extends MidaTradingAccount {
         });
 
         this.#connection = connection;
+        this.#cTraderEmitter = new MidaEmitter();
         this.#brokerAccountId = brokerAccountId;
         this.#brokerName = brokerName;
         this.#assets = new Map();
@@ -178,7 +180,22 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     public override async isSymbolMarketOpen (symbol: string): Promise<boolean> {
-        throw new MidaUnsupportedOperationError();
+        const completeSymbol: GenericObject = await this.#getCompletePlainSymbol(symbol);
+        const schedules: GenericObject[] = completeSymbol.schedule;
+        const actualDate: Date = new Date();
+        const actualTimestamp: number = actualDate.getTime();
+        const lastSundayTimestamp: number = getLastSunday(actualDate).getTime();
+
+        for (const schedule of schedules) {
+            if (
+                actualTimestamp >= (lastSundayTimestamp + schedule.startSecond * 1000) &&
+                actualTimestamp <= (lastSundayTimestamp + schedule.endSecond * 1000)
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public override async getSymbolPeriods (symbol: string, timeframe: number): Promise<MidaPeriod[]> {
@@ -190,7 +207,7 @@ export class CTraderAccount extends MidaTradingAccount {
             toTimestamp: Date.now(),
             period: toCTraderTimeframe(timeframe),
             symbolId,
-            count: 200,
+            count: 500,
         })).trendbar;
 
         for (const plainPeriod of plainPeriods) {
@@ -208,6 +225,9 @@ export class CTraderAccount extends MidaTradingAccount {
                 timeframe,
             }));
         }
+
+        // Order from oldest to newest
+        periods.sort((left, right): number => left.startDate.timestamp - right.startDate.timestamp);
 
         return periods;
     }
@@ -303,8 +323,6 @@ export class CTraderAccount extends MidaTradingAccount {
             });
         }
     }
-
-
 
     public override async getOrders (symbol: string): Promise<MidaOrder[]> {
         const normalizedFromTimestamp: number = Date.now() - 1000 * 60 * 60 * 24 * 3;
@@ -487,6 +505,7 @@ export class CTraderAccount extends MidaTradingAccount {
             isStopOut: plainOrder.isStopOut === true,
             uuid: plainOrder.clientOrderId || undefined,
             connection: this.#connection,
+            cTraderEmitter: this.#cTraderEmitter,
         });
 
         this.#normalizedOrders.set(orderId, order);
@@ -527,6 +546,7 @@ export class CTraderAccount extends MidaTradingAccount {
             }),
             direction: plainPosition.tradeData.tradeSide === "BUY" ? MidaPositionDirection.LONG : MidaPositionDirection.SHORT,
             connection: this.#connection,
+            cTraderEmitter: this.#cTraderEmitter,
         });
     }
 
@@ -604,6 +624,7 @@ export class CTraderAccount extends MidaTradingAccount {
             isStopOut: false, // Stop out orders are sent by broker
             uuid,
             connection: this.#connection,
+            cTraderEmitter: this.#cTraderEmitter,
         });
 
         const plainSymbol: GenericObject = this.#symbols.get(symbol) as GenericObject;
@@ -1012,6 +1033,8 @@ export class CTraderAccount extends MidaTradingAccount {
         }
         // </update-positions>
 
+        this.#cTraderEmitter.notifyListeners("execution", { descriptor, });
+
         // Process next event if there is any
         const nextDescriptor: GenericObject | undefined = this.#updateEventQueue.shift();
         this.#updateEventIsLocked = false;
@@ -1065,6 +1088,10 @@ export class CTraderAccount extends MidaTradingAccount {
             // const positionId: string = descriptor.positionId.toString();
         });
         // </position-update>
+
+        this.#connection.on("ProtoOAOrderErrorEvent", ({ descriptor, }): void => {
+            this.#cTraderEmitter.notifyListeners("order-error", { descriptor, });
+        });
     }
 
     #getPlainSymbolById (id: string): GenericObject | undefined {
@@ -1357,3 +1384,11 @@ export function toCTraderTimeframe (timeframe: number): string {
         }
     }
 }
+
+const getLastSunday = (date: Date): Date => {
+    const lastSunday = new Date(date);
+
+    lastSunday.setDate(lastSunday.getDate() - lastSunday.getDay());
+
+    return lastSunday;
+};
