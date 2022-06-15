@@ -324,8 +324,6 @@ export class CTraderAccount extends MidaTradingAccount {
         }
     }
 
-
-
     public override async getOrders (symbol: string): Promise<MidaOrder[]> {
         const normalizedFromTimestamp: number = Date.now() - 1000 * 60 * 60 * 24 * 3;
         const normalizedToTimestamp: number = Date.now();
