@@ -207,7 +207,7 @@ export class CTraderAccount extends MidaTradingAccount {
             toTimestamp: Date.now(),
             period: toCTraderTimeframe(timeframe),
             symbolId,
-            count: 200,
+            count: 500,
         })).trendbar;
 
         for (const plainPeriod of plainPeriods) {
