@@ -102,7 +102,7 @@ export class CTraderOrder extends MidaOrder {
         });
     }
 
-    // eslint-disable-next-line max-lines-per-function
+    // eslint-disable-next-line max-lines-per-function, complexity
     async #onUpdate (descriptor: GenericObject): Promise<void> {
         if (this.#updateEventIsLocked) {
             this.#updateEventQueue.push(descriptor);
