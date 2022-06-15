@@ -1,3 +1,5 @@
+4.0.0 - 16-06-2022
+===================
 ### Features
 * Set protection for market orders [#18](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/18)
 * Implement `isSymbolMarketOpen()` interface [#16](https://github.com/Reiryoku-Technologies/Mida-cTrader/pull/16)
