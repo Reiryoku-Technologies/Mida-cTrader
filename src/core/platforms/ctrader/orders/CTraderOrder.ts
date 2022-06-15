@@ -1,14 +1,15 @@
 import {
-    GenericObject, MidaDate, MidaOrder, MidaOrderRejection, MidaOrderStatus,
+    GenericObject, MidaDate, MidaEmitter, MidaOrder, MidaOrderRejection, MidaOrderStatus,
 } from "@reiryoku/mida";
 import { CTraderOrderParameters, } from "#platforms/ctrader/orders/CTraderOrderParameters";
-import { CTraderConnection, } from "@reiryoku/ctrader-layer";
 import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
+import { CTraderConnection, } from "@reiryoku/ctrader-layer";
 
 export class CTraderOrder extends MidaOrder {
     // The uuid associated to the order request
     readonly #uuid: string;
     readonly #connection: CTraderConnection;
+    readonly #cTraderEmitter: MidaEmitter;
     readonly #updateEventQueue: GenericObject[];
     #updateEventIsLocked: boolean;
     #updateEventUuid?: string;
@@ -32,6 +33,7 @@ export class CTraderOrder extends MidaOrder {
         isStopOut,
         uuid,
         connection,
+        cTraderEmitter,
     }: CTraderOrderParameters) {
         super({
             id,
@@ -53,6 +55,7 @@ export class CTraderOrder extends MidaOrder {
 
         this.#uuid = uuid;
         this.#connection = connection;
+        this.#cTraderEmitter = cTraderEmitter;
         this.#updateEventQueue = [];
         this.#updateEventIsLocked = false;
         this.#updateEventUuid = undefined;
@@ -217,7 +220,8 @@ export class CTraderOrder extends MidaOrder {
 
     #configureListeners (): void {
         // <order-execution>
-        this.#updateEventUuid = this.#connection.on("ProtoOAExecutionEvent", ({ descriptor, }): void => {
+        this.#updateEventUuid = this.#cTraderEmitter.on("execution", (event): void => {
+            const descriptor: GenericObject = event.descriptor.descriptor;
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
             if (
@@ -230,7 +234,8 @@ export class CTraderOrder extends MidaOrder {
         // </order-execution>
 
         // <request-validation-errors>
-        this.#rejectEventUuid = this.#connection.on("ProtoOAOrderErrorEvent", ({ descriptor, }): void => {
+        this.#rejectEventUuid = this.#cTraderEmitter.on("order-error", (event): void => {
+            const descriptor: GenericObject = event.descriptor.descriptor;
             const orderId: string | undefined = descriptor?.order?.orderId?.toString();
 
             if (
@@ -245,13 +250,13 @@ export class CTraderOrder extends MidaOrder {
 
     #removeEventsListeners (): void {
         if (this.#updateEventUuid) {
-            this.#connection.removeEventListener(this.#updateEventUuid);
+            this.#cTraderEmitter.removeEventListener(this.#updateEventUuid);
 
             this.#updateEventUuid = undefined;
         }
 
         if (this.#rejectEventUuid) {
-            this.#connection.removeEventListener(this.#rejectEventUuid);
+            this.#cTraderEmitter.removeEventListener(this.#rejectEventUuid);
 
             this.#rejectEventUuid = undefined;
         }
