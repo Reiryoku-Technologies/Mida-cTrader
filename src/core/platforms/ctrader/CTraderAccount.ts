@@ -625,6 +625,7 @@ export class CTraderAccount extends MidaTradingAccount {
             uuid,
             connection: this.#connection,
             cTraderEmitter: this.#cTraderEmitter,
+            requestedProtection: directives.protection,
         });
 
         const plainSymbol: GenericObject = this.#symbols.get(symbol) as GenericObject;

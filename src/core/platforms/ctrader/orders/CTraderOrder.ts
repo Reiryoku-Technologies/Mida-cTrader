@@ -1,5 +1,13 @@
 import {
-    GenericObject, MidaDate, MidaEmitter, MidaOrder, MidaOrderRejection, MidaOrderStatus,
+    GenericObject,
+    MidaDate,
+    MidaEmitter,
+    MidaOrder,
+    MidaOrderRejection,
+    MidaOrderStatus,
+    MidaPosition,
+    MidaPositionStatus,
+    MidaProtection,
 } from "@reiryoku/mida";
 import { CTraderOrderParameters, } from "#platforms/ctrader/orders/CTraderOrderParameters";
 import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
@@ -10,6 +18,7 @@ export class CTraderOrder extends MidaOrder {
     readonly #uuid: string;
     readonly #connection: CTraderConnection;
     readonly #cTraderEmitter: MidaEmitter;
+    readonly #requestedProtection?: MidaProtection;
     readonly #updateEventQueue: GenericObject[];
     #updateEventIsLocked: boolean;
     #updateEventUuid?: string;
@@ -34,6 +43,7 @@ export class CTraderOrder extends MidaOrder {
         uuid,
         connection,
         cTraderEmitter,
+        requestedProtection,
     }: CTraderOrderParameters) {
         super({
             id,
@@ -56,6 +66,7 @@ export class CTraderOrder extends MidaOrder {
         this.#uuid = uuid;
         this.#connection = connection;
         this.#cTraderEmitter = cTraderEmitter;
+        this.#requestedProtection = requestedProtection;
         this.#updateEventQueue = [];
         this.#updateEventIsLocked = false;
         this.#updateEventUuid = undefined;
@@ -137,7 +148,16 @@ export class CTraderOrder extends MidaOrder {
 
                 this.onTrade(await this.#cTraderTradingAccount.normalizeTrade(descriptor.deal));
 
+                // Enters if the order is executed
                 if (order.orderStatus.toUpperCase() === "ORDER_STATUS_FILLED") {
+                    if (order.orderType.toUpperCase() === "MARKET" && this.#requestedProtection) {
+                        const position: MidaPosition | undefined = await this.getPosition();
+
+                        if (position && position.status === MidaPositionStatus.OPEN) {
+                            await position.changeProtection(this.#requestedProtection);
+                        }
+                    }
+
                     this.#removeEventsListeners();
                     this.onStatusChange(MidaOrderStatus.EXECUTED);
                 }
