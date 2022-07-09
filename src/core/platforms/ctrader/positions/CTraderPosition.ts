@@ -1,5 +1,6 @@
 import {
-    GenericObject, MidaEmitter,
+    decimal,
+    GenericObject, MidaDecimal, MidaEmitter,
     MidaOrder,
     MidaOrderDirection,
     MidaPosition,
@@ -7,8 +8,8 @@ import {
     MidaPositionStatus,
     MidaProtection,
     MidaProtectionChange,
-    MidaProtectionChangeStatus,
-    MidaUtilities,
+    MidaProtectionChangeStatus, MidaProtectionDirectives,
+    uuid,
 } from "@reiryoku/mida";
 import { CTraderPositionParameters, } from "#platforms/ctrader/positions/CTraderPositionParameters";
 import { CTraderConnection, } from "@reiryoku/ctrader-layer";
@@ -20,7 +21,7 @@ export class CTraderPosition extends MidaPosition {
     readonly #updateEventQueue: GenericObject[];
     #updateEventIsLocked: boolean;
     #updateEventUuid?: string;
-    readonly #protectionChangeRequests: Map<string, [ MidaProtection, Function, ]>;
+    readonly #protectionChangeRequests: Map<string, [ MidaProtectionDirectives, Function, ]>;
 
     public constructor ({
         id,
@@ -59,14 +60,14 @@ export class CTraderPosition extends MidaPosition {
         return this.#cTraderTradingAccount.brokerAccountId;
     }
 
-    public override async getUsedMargin (): Promise<number> {
+    public override async getUsedMargin (): Promise<MidaDecimal> {
         if (this.status === MidaPositionStatus.CLOSED) {
-            return 0;
+            return decimal(0);
         }
 
         const plainPosition: GenericObject = this.#cTraderTradingAccount.getPlainPositionById(this.id) as GenericObject;
 
-        return Number(plainPosition.usedMargin) / 100;
+        return decimal(plainPosition.usedMargin).divide(100);
     }
 
     public override async addVolume (volume: number): Promise<MidaOrder> {
@@ -85,29 +86,29 @@ export class CTraderPosition extends MidaPosition {
         });
     }
 
-    public override async getUnrealizedSwap (): Promise<number> {
+    public override async getUnrealizedSwap (): Promise<MidaDecimal> {
         if (this.status === MidaPositionStatus.CLOSED) {
-            return 0;
+            return decimal(0);
         }
 
         const plainPosition: GenericObject = this.#cTraderTradingAccount.getPlainPositionById(this.id) as GenericObject;
 
-        return Number(plainPosition.swap) / 100;
+        return decimal(plainPosition.swap).divide(100);
     }
 
-    public override async getUnrealizedCommission (): Promise<number> {
+    public override async getUnrealizedCommission (): Promise<MidaDecimal> {
         if (this.status === MidaPositionStatus.CLOSED) {
-            return 0;
+            return decimal(0);
         }
 
         const plainPosition: GenericObject = this.#cTraderTradingAccount.getPlainPositionById(this.id) as GenericObject;
 
-        return Number(plainPosition.commission) / 100 * 2;
+        return decimal(plainPosition.commission).divide(100).multiply(2);
     }
 
-    public override async getUnrealizedGrossProfit (): Promise<number> {
+    public override async getUnrealizedGrossProfit (): Promise<MidaDecimal> {
         if (this.status === MidaPositionStatus.CLOSED) {
-            return 0;
+            return decimal(0);
         }
 
         const plainPosition: GenericObject = this.#cTraderTradingAccount.getPlainPositionById(this.id) as GenericObject;
@@ -115,7 +116,7 @@ export class CTraderPosition extends MidaPosition {
         return this.#cTraderTradingAccount.getPlainPositionGrossProfit(plainPosition);
     }
 
-    public override async changeProtection (protection: MidaProtection): Promise<MidaProtectionChange> {
+    public override async changeProtection (protection: MidaProtectionDirectives): Promise<MidaProtectionChange> {
         const requestDescriptor: GenericObject = {
             positionId: this.id,
             stopLoss: this.stopLoss,
@@ -124,23 +125,23 @@ export class CTraderPosition extends MidaPosition {
         };
 
         if ("stopLoss" in protection) {
-            requestDescriptor.stopLoss = protection.stopLoss;
+            requestDescriptor.stopLoss = decimal(protection.stopLoss);
         }
 
         if ("takeProfit" in protection) {
-            requestDescriptor.takeProfit = protection.takeProfit;
+            requestDescriptor.takeProfit = decimal(protection.takeProfit);
         }
 
         if ("trailingStopLoss" in protection) {
-            requestDescriptor.trailingStopLoss = protection.trailingStopLoss;
+            requestDescriptor.trailingStopLoss = protection.trailingStopLoss === true;
         }
 
-        const uuid: string = MidaUtilities.uuid();
+        const id: string = uuid();
         const protectionChangePromise: Promise<MidaProtectionChange> = new Promise((resolver: Function) => {
-            this.#protectionChangeRequests.set(uuid, [ protection, resolver, ]);
+            this.#protectionChangeRequests.set(id, [ protection, resolver, ]);
         });
 
-        this.#sendCommand("ProtoOAAmendPositionSLTPReq", requestDescriptor, uuid);
+        this.#sendCommand("ProtoOAAmendPositionSLTPReq", requestDescriptor, id);
 
         return protectionChangePromise;
     }
@@ -163,7 +164,7 @@ export class CTraderPosition extends MidaPosition {
             switch (descriptor.executionType) {
                 case "SWAP": {
                     // TODO: pass the real quantity
-                    this.onSwap(NaN);
+                    this.onSwap(decimal(0));
 
                     break;
                 }
@@ -186,7 +187,7 @@ export class CTraderPosition extends MidaPosition {
                 }
                 case "ORDER_PARTIAL_FILL":
                 case "ORDER_FILLED": {
-                    this.onTradeExecute(await this.#cTraderTradingAccount.normalizeTrade(descriptor.deal));
+                    this.onTrade(await this.#cTraderTradingAccount.normalizeTrade(descriptor.deal));
 
                     break;
                 }

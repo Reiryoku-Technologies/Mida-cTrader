@@ -7,7 +7,7 @@ import {
     MidaOrderStatus,
     MidaPosition,
     MidaPositionStatus,
-    MidaProtection,
+    MidaProtectionDirectives,
 } from "@reiryoku/mida";
 import { CTraderOrderParameters, } from "#platforms/ctrader/orders/CTraderOrderParameters";
 import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
@@ -18,7 +18,7 @@ export class CTraderOrder extends MidaOrder {
     readonly #uuid: string;
     readonly #connection: CTraderConnection;
     readonly #cTraderEmitter: MidaEmitter;
-    readonly #requestedProtection?: MidaProtection;
+    readonly #requestedProtection?: MidaProtectionDirectives;
     readonly #updateEventQueue: GenericObject[];
     #updateEventIsLocked: boolean;
     #updateEventUuid?: string;

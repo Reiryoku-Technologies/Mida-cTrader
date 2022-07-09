@@ -5,7 +5,7 @@ import {
     GenericObject,
     MidaTradingAccountOperativity,
     MidaTradingAccountPositionAccounting,
-    MidaDate,
+    MidaDate, decimal,
 } from "@reiryoku/mida";
 import { CTraderPlugin, } from "#CTraderPlugin";
 
@@ -114,7 +114,7 @@ export class CTraderApplication {
             primaryAsset: depositAsset.displayName.toUpperCase(),
             operativity: isLive ? MidaTradingAccountOperativity.REAL : MidaTradingAccountOperativity.DEMO,
             positionAccounting,
-            indicativeLeverage: Number(accountDescriptor.leverageInCents) / 100,
+            indicativeLeverage: decimal(accountDescriptor.leverageInCents).divide(100),
             connection,
             brokerAccountId: cTraderBrokerAccountId,
             brokerName: accountDescriptor.brokerName,
