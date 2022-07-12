@@ -146,7 +146,7 @@ export class CTraderOrder extends MidaOrder {
                     this.positionId = order.positionId.toString();
                 }
 
-                this.onTrade(await this.#cTraderTradingAccount.normalizeTrade(descriptor.deal));
+                this.onTrade(this.#cTraderTradingAccount.normalizeTrade(descriptor.deal));
 
                 // Enters if the order is executed
                 if (order.orderStatus.toUpperCase() === "ORDER_STATUS_FILLED") {

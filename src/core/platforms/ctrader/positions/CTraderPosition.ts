@@ -146,19 +146,12 @@ export class CTraderPosition extends MidaPosition {
         return protectionChangePromise;
     }
 
-    // eslint-disable-next-line max-lines-per-function
-    async #onUpdate (descriptor: GenericObject): Promise<void> {
-        if (this.#updateEventIsLocked) {
-            this.#updateEventQueue.push(descriptor);
-
-            return;
-        }
-
-        this.#updateEventIsLocked = true;
-
+    #onUpdate (descriptor: GenericObject): void {
         const plainOrder: GenericObject = descriptor.order;
         const positionId: string = plainOrder?.positionId?.toString();
         const messageId: string = descriptor.clientMsgId;
+
+        console.log(222);
 
         if (positionId && positionId === this.id) {
             switch (descriptor.executionType) {
@@ -187,21 +180,14 @@ export class CTraderPosition extends MidaPosition {
                 }
                 case "ORDER_PARTIAL_FILL":
                 case "ORDER_FILLED": {
-                    this.onTrade(await this.#cTraderTradingAccount.normalizeTrade(descriptor.deal));
+                    this.onTrade(this.#cTraderTradingAccount.normalizeTrade(descriptor.deal));
 
                     break;
                 }
             }
         }
 
-        // Process next event if there is any
-        const nextDescriptor: GenericObject | undefined = this.#updateEventQueue.shift();
-        this.#updateEventIsLocked = false;
-
-        if (nextDescriptor) {
-            this.#onUpdate(nextDescriptor);
-        }
-        else if (descriptor?.position?.positionStatus.toUpperCase() === "POSITION_STATUS_CLOSED") {
+        if (descriptor?.position?.positionStatus.toUpperCase() === "POSITION_STATUS_CLOSED") {
             this.#removeEventsListeners();
         }
     }
@@ -211,7 +197,7 @@ export class CTraderPosition extends MidaPosition {
             const descriptor: GenericObject = event.descriptor.descriptor;
 
             if (descriptor.ctidTraderAccountId.toString() === this.#brokerAccountId) {
-                this.#onUpdate(descriptor); // Not using await is intended
+                this.#onUpdate(descriptor);
             }
         });
     }

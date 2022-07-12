@@ -183,6 +183,7 @@ export class CTraderAccount extends MidaTradingAccount {
         return [ ...this.#normalizedAssets.keys(), ];
     }
 
+    // https://help.ctrader.com/open-api/model-messages/#protooainterval
     public override async isSymbolMarketOpen (symbol: string): Promise<boolean> {
         const completeSymbol: GenericObject = this.#getCompletePlainSymbol(symbol);
         const schedules: GenericObject[] = completeSymbol.schedule;
@@ -190,10 +191,12 @@ export class CTraderAccount extends MidaTradingAccount {
         const actualTimestamp: number = actualDate.getTime();
         const lastSundayTimestamp: number = getLastSunday(actualDate).getTime();
 
+        console.log(date(lastSundayTimestamp).iso);
+
         for (const schedule of schedules) {
             if (
                 actualTimestamp >= (lastSundayTimestamp + schedule.startSecond * 1000) &&
-                actualTimestamp <= (lastSundayTimestamp + schedule.endSecond * 1000)
+                actualTimestamp < (lastSundayTimestamp + schedule.endSecond * 1000)
             ) {
                 return true;
             }
@@ -449,8 +452,8 @@ export class CTraderAccount extends MidaTradingAccount {
         const purpose: MidaOrderPurpose = plainOrder.closingOrder === false ? MidaOrderPurpose.OPEN : MidaOrderPurpose.CLOSE;
         const openDate: MidaDate = date(plainOrder.tradeData.openTimestamp);
         const direction: MidaOrderDirection = tradeSide === "SELL" ? MidaOrderDirection.SELL : MidaOrderDirection.BUY;
-        const limitPrice: MidaDecimal = decimal(plainOrder.limitPrice);
-        const stopPrice: MidaDecimal = decimal(plainOrder.stopPrice);
+        const limitPrice: MidaDecimal | undefined = plainOrder.limitPrice ? decimal(plainOrder.limitPrice) : undefined;
+        const stopPrice: MidaDecimal | undefined = plainOrder.stopPrice ? decimal(plainOrder.stopPrice) : undefined;
         let status: MidaOrderStatus;
 
         switch (plainOrder.orderStatus) {
@@ -497,8 +500,8 @@ export class CTraderAccount extends MidaTradingAccount {
             requestedVolume,
             direction,
             purpose,
-            limitPrice: !limitPrice.equals(0) ? limitPrice : undefined,
-            stopPrice: !stopPrice.equals(0) ? stopPrice : undefined,
+            limitPrice,
+            stopPrice,
             status,
             creationDate: openDate,
             lastUpdateDate: date(plainOrder.utcLastUpdateTimestamp),
@@ -623,7 +626,7 @@ export class CTraderAccount extends MidaTradingAccount {
             id: "",
             tradingAccount: this,
             symbol,
-            requestedVolume: requestedVolume,
+            requestedVolume,
             direction: directives.direction,
             purpose,
             limitPrice,
@@ -648,7 +651,7 @@ export class CTraderAccount extends MidaTradingAccount {
 
         requestDirectives = {
             symbolId: plainSymbol.symbolId.toString(),
-            volume: normalizedVolume,
+            volume: normalizedVolume.toString(),
             tradeSide: directives.direction === MidaOrderDirection.BUY ? "BUY" : "SELL",
             timeInForce: toCTraderTimeInForce(timeInForce),
         };
@@ -680,11 +683,11 @@ export class CTraderAccount extends MidaTradingAccount {
 
             if (limitPrice) {
                 requestDirectives.orderType = "LIMIT";
-                requestDirectives.limitPrice = limitPrice;
+                requestDirectives.limitPrice = Number(limitPrice.toString());
             }
             else if (stopPrice) {
                 requestDirectives.orderType = "STOP";
-                requestDirectives.stopPrice = stopPrice;
+                requestDirectives.stopPrice = Number(stopPrice.toString());
             }
             else {
                 requestDirectives.orderType = "MARKET";
@@ -694,11 +697,11 @@ export class CTraderAccount extends MidaTradingAccount {
             // Protection is set on market orders after the order is executed
             if (requestDirectives.orderType !== "MARKET") {
                 if (stopLoss !== undefined) {
-                    requestDirectives.stopLoss = decimal(stopLoss);
+                    requestDirectives.stopLoss = decimal(stopLoss).toString();
                 }
 
                 if (takeProfit !== undefined) {
-                    requestDirectives.takeProfit = decimal(takeProfit);
+                    requestDirectives.takeProfit = decimal(takeProfit).toString();
                 }
 
                 if (trailingStopLoss) {
@@ -821,9 +824,9 @@ export class CTraderAccount extends MidaTradingAccount {
         const executionDate = date(plainTrade.executionTimestamp);
         const rejectionDate: MidaDate | undefined = undefined;
         const plainExecutionPrice: string = plainTrade.executionPrice;
-        const plainGrossProfit: string = plainTrade?.closePositionDetail?.grossProfit;
-        const plainCommission: string = plainTrade.commission;
-        const plainSwap: string = plainTrade?.closePositionDetail?.swap;
+        const plainGrossProfit: string | undefined = plainTrade?.closePositionDetail?.grossProfit;
+        const plainCommission: string | undefined = plainTrade.commission;
+        const plainSwap: string | undefined = plainTrade?.closePositionDetail?.swap;
 
         return new CTraderTrade({
             id,
@@ -859,16 +862,16 @@ export class CTraderAccount extends MidaTradingAccount {
     }
 
     public normalizeProtection (plainPosition: GenericObject): MidaProtection {
-        const takeProfit: MidaDecimal = decimal(plainPosition.takeProfit);
-        const stopLoss: MidaDecimal = decimal(plainPosition.stopLoss);
+        const takeProfit: MidaDecimal | undefined = plainPosition.takeProfit ? decimal(plainPosition.takeProfit) : undefined;
+        const stopLoss: MidaDecimal | undefined = plainPosition.stopLoss ? decimal(plainPosition.stopLoss) : undefined;
         const trailingStopLoss: boolean = Boolean(plainPosition.trailingStopLoss);
         const protection: MidaProtection = {};
 
-        if (!takeProfit.equals(0)) {
+        if (takeProfit) {
             protection.takeProfit = takeProfit;
         }
 
-        if (!stopLoss.equals(0)) {
+        if (stopLoss) {
             protection.stopLoss = stopLoss;
             protection.trailingStopLoss = trailingStopLoss;
         }
@@ -976,16 +979,16 @@ export class CTraderAccount extends MidaTradingAccount {
     // The first tick recived after subscription will always contain the latest known bid and ask price
     #onTick (descriptor: GenericObject): void {
         const symbol: string = this.#getPlainSymbolById(descriptor.symbolId.toString())?.symbolName as string;
-        const bid: MidaDecimal = decimal(descriptor.bid).divide(100000);
-        const ask: MidaDecimal = decimal(descriptor.ask).divide(100000);
+        const bid: MidaDecimal | undefined = descriptor.bid ? decimal(descriptor.bid).divide(100000) : undefined;
+        const ask: MidaDecimal | undefined = descriptor.ask ? decimal(descriptor.ask).divide(100000) : undefined;
         const isFirstTick: boolean = !this.#lastTicks.has(symbol);
         const previousTick: MidaTick | undefined = this.#lastTicks.get(symbol);
         const movement: MidaTickMovement = ((): MidaTickMovement => {
-            if (ask.equals(0)) {
+            if (!ask) {
                 return MidaTickMovement.BID;
             }
 
-            if (bid.equals(0)) {
+            if (!bid) {
                 return MidaTickMovement.ASK;
             }
 
@@ -993,8 +996,8 @@ export class CTraderAccount extends MidaTradingAccount {
         })();
         const tick: MidaTick = new MidaTick({
             symbol,
-            bid: !bid.equals(0) ? bid : previousTick?.bid,
-            ask: !ask.equals(0) ? ask : previousTick?.ask,
+            bid: bid ?? previousTick?.bid,
+            ask: ask ?? previousTick?.ask,
             date: date(),
             movement,
         });
@@ -1009,7 +1012,7 @@ export class CTraderAccount extends MidaTradingAccount {
         const listenedTimeframes: number[] = this.#periodListeners.get(symbol) ?? [];
 
         for (const plainPeriod of descriptor.trendbar ?? []) {
-            const period: MidaPeriod = normalizePeriod(plainPeriod, symbol);
+            const period: MidaPeriod = normalizePeriod(plainPeriod, symbol, tick);
 
             if (listenedTimeframes.includes(period.timeframe)) {
                 this.notifyListeners("period-update", { period, });
@@ -1471,8 +1474,9 @@ export const normalizeTimeInForce = (timeInForce: string): MidaOrderTimeInForce 
     }
 };
 
-export const normalizePeriod = (plainPeriod: GenericObject, symbol: string): MidaPeriod => {
+export const normalizePeriod = (plainPeriod: GenericObject, symbol: string, lastTick?: MidaTick): MidaPeriod => {
     const low: MidaDecimal = decimal(plainPeriod.low).divide(100000);
+    const isClosed: boolean = !lastTick;
 
     return new MidaPeriod({
         symbol,
@@ -1481,7 +1485,8 @@ export const normalizePeriod = (plainPeriod: GenericObject, symbol: string): Mid
         open: low.add(decimal(plainPeriod.deltaOpen).divide(100000)),
         high: low.add(decimal(plainPeriod.deltaHigh).divide(100000)),
         low,
-        close: low.add(decimal(plainPeriod.deltaClose).divide(100000)),
+        close: isClosed ? low.add(decimal(plainPeriod.deltaClose).divide(100000)) : lastTick?.bid as MidaDecimal,
+        isClosed,
         volume: decimal(plainPeriod.volume),
         timeframe: normalizeTimeframe(plainPeriod.period),
     });
@@ -1490,7 +1495,8 @@ export const normalizePeriod = (plainPeriod: GenericObject, symbol: string): Mid
 const getLastSunday = (date: Date): Date => {
     const lastSunday = new Date(date);
 
-    lastSunday.setDate(lastSunday.getDate() - lastSunday.getDay());
+    lastSunday.setUTCDate(lastSunday.getUTCDate() - lastSunday.getUTCDay());
+    lastSunday.setUTCHours(0, 0, 0, 0);
 
     return lastSunday;
 };
