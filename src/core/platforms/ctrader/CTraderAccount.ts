@@ -191,8 +191,6 @@ export class CTraderAccount extends MidaTradingAccount {
         const actualTimestamp: number = actualDate.getTime();
         const lastSundayTimestamp: number = getLastSunday(actualDate).getTime();
 
-        console.log(date(lastSundayTimestamp).iso);
-
         for (const schedule of schedules) {
             if (
                 actualTimestamp >= (lastSundayTimestamp + schedule.startSecond * 1000) &&
@@ -545,7 +543,7 @@ export class CTraderAccount extends MidaTradingAccount {
         return (await this.#getSymbolLastTick(symbol)).ask;
     }
 
-    public override async getSymbolAveragePrice (symbol: string): Promise<MidaDecimal> {
+    public override async getSymbolAverage (symbol: string): Promise<MidaDecimal> {
         const { bid, ask, } = await this.#getSymbolLastTick(symbol);
 
         return bid.add(ask).divide(2);
