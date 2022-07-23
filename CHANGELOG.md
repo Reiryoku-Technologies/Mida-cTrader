@@ -1,3 +1,7 @@
+5.0.0 - 23-07-2022
+===================
+* **_BREAKING_** General refactor and alignment to the latest Mida API
+
 4.0.0 - 16-06-2022
 ===================
 ### Features

@@ -1,6 +1,6 @@
 {
     "name": "@reiryoku/mida-ctrader",
-    "version": "4.0.0",
+    "version": "5.0.0",
     "description": "A Mida plugin for using cTrader accounts",
     "license": "MIT",
     "homepage": "https://github.com/Reiryoku-Technologies/Mida-cTrader",
@@ -36,18 +36,18 @@
     },
     "devDependencies": {
         "@reiryoku/eslint-config-reiryoku": "^3.0.0",
-        "@reiryoku/mida": "file:../Mida",
-        "@types/jest": "^27.5.2",
-        "@types/node": "^17.0.38",
-        "@typescript-eslint/eslint-plugin": "^5.27.0",
-        "@typescript-eslint/parser": "^5.27.0",
-        "eslint": "^8.16.0",
-        "jest": "^28.1.0",
+        "@reiryoku/mida": "2022.1.0",
+        "@types/jest": "^28.1.6",
+        "@types/node": "^18.0.6",
+        "@typescript-eslint/eslint-plugin": "^5.30.7",
+        "@typescript-eslint/parser": "^5.30.7",
+        "eslint": "^8.20.0",
+        "jest": "^28.1.3",
         "ttypescript": "^1.5.13",
-        "typescript": "^4.7.2",
+        "typescript": "^4.7.4",
         "typescript-transform-paths": "^3.3.1"
     },
     "peerDependencies": {
-        "@reiryoku/mida": "file:../MIDA"
+        "@reiryoku/mida": "2022.x"
     }
 }

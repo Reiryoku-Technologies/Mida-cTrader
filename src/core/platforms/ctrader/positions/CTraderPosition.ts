@@ -1,3 +1,25 @@
+/*
+ * Copyright Reiryoku Technologies and its contributors, www.reiryoku.com, www.mida.org
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+*/
+
 import {
     decimal,
     GenericObject, MidaDecimal, MidaEmitter,
@@ -6,7 +28,6 @@ import {
     MidaPosition,
     MidaPositionDirection,
     MidaPositionStatus,
-    MidaProtection,
     MidaProtectionChange,
     MidaProtectionChangeStatus, MidaProtectionDirectives,
     uuid,
@@ -18,8 +39,6 @@ import { CTraderAccount, } from "#platforms/ctrader/CTraderAccount";
 export class CTraderPosition extends MidaPosition {
     readonly #connection: CTraderConnection;
     readonly #cTraderEmitter: MidaEmitter;
-    readonly #updateEventQueue: GenericObject[];
-    #updateEventIsLocked: boolean;
     #updateEventUuid?: string;
     readonly #protectionChangeRequests: Map<string, [ MidaProtectionDirectives, Function, ]>;
 
@@ -44,8 +63,6 @@ export class CTraderPosition extends MidaPosition {
 
         this.#connection = connection;
         this.#cTraderEmitter = cTraderEmitter;
-        this.#updateEventQueue = [];
-        this.#updateEventIsLocked = false;
         this.#updateEventUuid = undefined;
         this.#protectionChangeRequests = new Map();
 
@@ -150,8 +167,6 @@ export class CTraderPosition extends MidaPosition {
         const plainOrder: GenericObject = descriptor.order;
         const positionId: string = plainOrder?.positionId?.toString();
         const messageId: string = descriptor.clientMsgId;
-
-        console.log(222);
 
         if (positionId && positionId === this.id) {
             switch (descriptor.executionType) {
