@@ -350,6 +350,9 @@ export class CTraderAccount extends MidaTradingAccount {
             throw new Error();
         }
 
+        // Periods subscription requires ticks subscription
+        await this.watchSymbolTicks(symbol);
+
         const listenedTimeframes: number[] = this.#periodListeners.get(symbol) ?? [];
 
         if (!listenedTimeframes.includes(timeframe)) {
